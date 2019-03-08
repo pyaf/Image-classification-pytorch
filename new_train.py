@@ -10,7 +10,7 @@ from collections import defaultdict
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tensorboard_logger import configure, log_value
-from utils import iter_log, epoch_log, logger, print_time, Meter, mkdir
+from utils import iter_log, logger_init, epoch_log, print_time, Meter, mkdir, adjust_lr
 from dataloader import provider
 from shutil import copyfile
 from models import Model
@@ -22,14 +22,16 @@ print(HOME)
 class Trainer(object):
     def __init__(self, fold):
         model_name = "se_resnext50_32x4d"
-        folder = 'weights/7Mar_%s_fold%s' % (model_name, fold)
+        folder = 'weights/8Mar_%s_v2_fold%s' % (model_name, fold)
         self.resume = False
         self.fold = fold
-        self.num_workers = 16
-        self.batch_size = {'train': 32, 'val': 16}
-        self.lr = 7e-5 #4e-4 #0.00007 #1e-3
+        self.num_workers = 8
+        self.batch_size = {'train': 64, 'val': 32}
+        self.top_lr = 7e-5 #4e-4 #0.00007 #1e-3
+        self.base_lr = self.top_lr * 0.001
         self.momentum = 0.95
-        self.weight_decay = 5e-4
+        self.epoch_2_lr = {1: 2, 3: 5, 5: 2, 6:5, 7:2, 9:5} # factor to scale base_lr with
+        #self.weight_decay = 5e-4
         self.best_loss = float("inf")
         self.start_epoch = 0
         self.num_epochs = 1000
@@ -44,18 +46,15 @@ class Trainer(object):
         torch.set_default_tensor_type(self.tensor_type)
         self.net = Model(model_name, 1)
         self.optimizer = optim.SGD([
-                        {"params": self.net.layer0.parameters()},
-                        {"params": self.net.layer1.parameters()},
-                        {"params": self.net.layer2.parameters()},
-                        {"params": self.net.layer3.parameters()},
-                        {"params": self.net.layer4.parameters()},
-                        {"params": self.net.avg_pool.parameters()},
-                        {"params": self.net.last_linear.parameters(), "lr": self.lr}],
-                        lr=self.lr * 0.001,
-                        momentum=self.momentum,
-                        weight_decay=self.weight_decay)
+                        {"params": self.net.backbone.parameters()},
+                        {"params": self.net.linear.parameters(), "lr": self.top_lr}],
+                        lr=self.base_lr, #1e-7#self.lr * 0.001,
+                        momentum=self.momentum)
+                        #weight_decay=self.weight_decay)
+        #pdb.set_trace()
         self.scheduler = ReduceLROnPlateau(self.optimizer, mode='min', patience=2, verbose=True)
         self.criterion = torch.nn.BCEWithLogitsLoss()
+        logger = logger_init(self.save_folder)
         self.log = logger.info
         if self.resume:
             self.resume_net()
@@ -108,15 +107,14 @@ class Trainer(object):
                 loss.backward()
                 self.optimizer.step()
             running_loss += loss.item()
-
             #pdb.set_trace()
             outputs = torch.sigmoid(outputs).detach()
             meter.update(targets.cpu(), outputs.cpu())
             if iteration % 500 == 0:
-                iter_log(phase, epoch, iteration, total_iters, loss, start)
+                iter_log(self.log, phase, epoch, iteration, total_iters, loss, start)
                 #break
         epoch_loss = running_loss / total_images
-        epoch_log(phase, epoch, epoch_loss, meter, start)
+        epoch_log(self.log, phase, epoch, epoch_loss, meter, start)
         torch.cuda.empty_cache()
         return epoch_loss
 
@@ -125,6 +123,11 @@ class Trainer(object):
         t0 = time.time()
         for epoch in range(self.start_epoch, self.num_epochs):
             t_epoch_start = time.time()
+            if epoch in self.epoch_2_lr.keys():
+                self.base_lr = self.base_lr * self.epoch_2_lr[epoch]
+                self.optimizer = adjust_lr(self.base_lr, self.optimizer)
+                self.log("Updating base_lr to %s" % self.base_lr)
+
             self.iterate(epoch, 'train')
             state = {
                 "epoch": epoch,
@@ -132,7 +135,6 @@ class Trainer(object):
                 "state_dict": self.net.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
             }
-
             torch.save(state, self.ckpt_path)
             val_loss = self.iterate(epoch, 'val')
             self.scheduler.step(val_loss)
@@ -142,8 +144,8 @@ class Trainer(object):
                 torch.save(state, self.model_path)
             #if epoch and epoch % 2 == 0:
             copyfile(self.ckpt_path, os.path.join(self.save_folder, "ckpt%d.pth" % epoch))
-            print_time(t_epoch_start, 'Time taken by the epoch')
-            print_time(t0, 'Total time taken so far')
+            print_time(self.log, t_epoch_start, 'Time taken by the epoch')
+            print_time(self.log, t0, 'Total time taken so far')
             self.log("\n" + "=" * 60 + "\n")
 
 

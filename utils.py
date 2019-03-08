@@ -14,19 +14,19 @@ from matplotlib import pyplot as plt
 
 plt.switch_backend('agg')
 
-HOME = os.path.dirname(__file__)
-logging.basicConfig(
-    filename=os.path.join(HOME, 'weights/log.txt'),
-    filemode='a',
-    level=logging.DEBUG,
-    format="%(asctime)s %(message)s",
-    datefmt="%H:%M:%S",
-)
-console = logging.StreamHandler()
-logger = logging.getLogger(__name__)
-logger.addHandler(console)
-
-data_cat = ['train', 'valid'] # data categories
+def logger_init(save_folder):
+    mkdir(save_folder)
+    logging.basicConfig(
+        filename=os.path.join(save_folder, 'log.txt'),
+        filemode='a',
+        level=logging.DEBUG,
+        format="%(asctime)s %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    console = logging.StreamHandler()
+    logger = logging.getLogger(__name__)
+    logger.addHandler(console)
+    return logger
 
 
 class Meter(ConfusionMeter):
@@ -71,30 +71,30 @@ def plot_ROC(roc, targets, predictions, phase, epoch, folder):
     plt.plot(fpr, tpr, marker='.')
     plt.legend([ "diagonal-line", roc_plot_name ])
     fig.savefig(roc_plot_path, bbox_inches='tight', pad_inches=0)
+    plt.close(fig) # see footnote [1]
+
     plot = cv2.imread(roc_plot_path)
     log_images(roc_plot_name, [plot], epoch)
-    #plt.show()
 
 
-def print_time(start, string):
+def print_time(log, start, string):
     diff = time.time() - start
-    logger.info(string + ': %02d:%02d' % (diff // 60, diff % 60))
+    log(string + ': %02d:%02d' % (diff // 60, diff % 60))
 
 
-def adjust_learning_rate(lr, optimizer):
-    """Sets the learning rate to the initial LR decayed by 10 at every
-        specified step
+def adjust_lr(lr, optimizer):
+    """ Update the lr of base model
     # Adapted from PyTorch Imagenet example:
     # https://github.com/pytorch/examples/blob/master/imagenet/main.py
     """
-    for param_group in optimizer.param_groups:
+    for param_group in optimizer.param_groups[:-1]:
         param_group['lr'] = lr
     return optimizer
 
 
-def iter_log(phase, epoch, iteration, epoch_size, loss, start):
+def iter_log(log, phase, epoch, iteration, epoch_size, loss, start):
     diff = (time.time() - start)
-    logger.info(
+    log(
         "%s epoch: %d (%d/%d) loss: %.4f || %02d:%02d",
         phase,
         epoch,
@@ -106,21 +106,21 @@ def iter_log(phase, epoch, iteration, epoch_size, loss, start):
     )
 
 
-def epoch_log(phase, epoch, epoch_loss, meter, start):
+def epoch_log(log, phase, epoch, epoch_loss, meter, start):
     diff = (time.time() - start)
     acc, precision, tpr, fpr, tnr, fnr, roc = meter.get_metrics()
-    logger.info("%s epoch: %d finished" % (phase, epoch))
-    logger.info(
+    log("%s epoch: %d finished" % (phase, epoch))
+    log(
         "%s Epoch: %d, loss: %0.4f, roc: %0.4f",
         phase,
         epoch,
         epoch_loss,
 	roc
     )
-    logger.info("Acc: %0.4f | Precision: %0.4f", acc, precision)
-    logger.info("tnr: %0.4f | fpr: %0.4f", tnr, fpr)
-    logger.info("fnr: %0.4f | tpr: %0.4f", fnr, tpr)
-    logger.info("Time taken for %s phase: %02d:%02d \n", phase, diff // 60, diff % 60)
+    log("Acc: %0.4f | Precision: %0.4f", acc, precision)
+    log("tnr: %0.4f | fpr: %0.4f", tnr, fpr)
+    log("fnr: %0.4f | tpr: %0.4f", fnr, tpr)
+    log("Time taken for %s phase: %02d:%02d \n", phase, diff // 60, diff % 60)
     log_value(phase + " loss", epoch_loss, epoch)
     log_value(phase + " roc", roc, epoch)
     log_value(phase + " acc", acc, epoch)
@@ -135,4 +135,8 @@ def mkdir(folder):
     if not os.path.exists(folder):
         os.mkdir(folder)
 
+"""Footnotes:
 
+[1]: https://stackoverflow.com/questions/21884271/warning-about-too-many-open-figures
+
+"""

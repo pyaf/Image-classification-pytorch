@@ -49,7 +49,7 @@ class ImageDataset(Dataset):
 
 def get_transforms(phase):
     list_transforms = [
-        albumentations.Resize(112, 112)
+        #albumentations.Resize(112, 112)
     ]
     if phase == "train":
         list_transforms.extend([

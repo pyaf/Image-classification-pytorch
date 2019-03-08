@@ -43,12 +43,12 @@ class TestDataset(data.Dataset):
 
 if __name__ == "__main__":
     use_cuda = True
-    #model_name = "se_resnext50_32x4d"
-    model_name = "se_resnet50"
-    trained_model_path = 'weights/7Mar_%s/model.pth' % model_name
+    model_name = "se_resnext50_32x4d"
+    #model_name = "se_resnet50"
+    trained_model_path = 'weights/8Mar_%s_fold0/model.pth' % model_name
     torch.set_num_threads(12)
     num_workers = 4
-    batch_size = 4
+    batch_size = 8
 
     device = torch.device("cuda" if use_cuda else "cpu")
     if use_cuda:
@@ -61,10 +61,11 @@ if __name__ == "__main__":
     net.load_state_dict(state["state_dict"])
     epoch = state["epoch"]
     net.to(device)
+    net.eval()
     # load data
     root = "data/test/"
     sample_submission_path = "data/sample_submission.csv"
-    sub_path = trained_model_path + '_ep_%s.csv' % epoch
+    sub_path = trained_model_path.split('.')[0] + '_ep_%s.csv' % epoch
     test_sub = pd.read_csv(sample_submission_path)
     print("Using trained model at %s" % trained_model_path)
     print('Saving predictions at %s' % sub_path)
@@ -83,7 +84,7 @@ if __name__ == "__main__":
         preds = torch.sigmoid(net(batch.to(device))).detach()      # forward pass
         predictions.extend(list(preds.cpu()))
 
-    for j, pred in enumerate(predictions):
+    for j, pred in enumerate(tqdm(predictions)):
         test_sub.loc[j, 'label'] = pred.item() # .at not working
         #pdb.set_trace()
     test_sub.to_csv(sub_path, index=False)
