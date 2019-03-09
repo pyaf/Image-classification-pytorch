@@ -27,7 +27,7 @@ class TestDataset(data.Dataset):
         self.fnames = list(df['id'])
         self.num_samples = len(self.fnames)
         self.transform = albumentations.Compose([
-            albumentations.Resize(112, 112),
+            #albumentations.Resize(112, 112),
             albumentations.Normalize(p=1),
             AT.ToTensor()])
 
@@ -45,10 +45,10 @@ if __name__ == "__main__":
     use_cuda = True
     model_name = "se_resnext50_32x4d"
     #model_name = "se_resnet50"
-    trained_model_path = 'weights/8Mar_%s_fold0/model.pth' % model_name
+    trained_model_path = 'weights/9Mar_%s_v2_fold0/model.pth' % model_name
     torch.set_num_threads(12)
     num_workers = 4
-    batch_size = 8
+    batch_size = 64
 
     device = torch.device("cuda" if use_cuda else "cpu")
     if use_cuda:
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     for i, batch in enumerate(tqdm(testset)):
         preds = torch.sigmoid(net(batch.to(device))).detach()      # forward pass
         predictions.extend(list(preds.cpu()))
-
+    pdb.set_trace()
     for j, pred in enumerate(tqdm(predictions)):
         test_sub.loc[j, 'label'] = pred.item() # .at not working
         #pdb.set_trace()

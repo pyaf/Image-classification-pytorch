@@ -27,10 +27,10 @@ class Trainer(object):
         self.fold = fold
         self.num_workers = 8
         self.batch_size = {'train': 64, 'val': 32}
-        self.top_lr = 7e-5 #4e-4 #0.00007 #1e-3
+        self.top_lr = 7e-5
         self.base_lr = self.top_lr * 0.001
         self.momentum = 0.95
-        self.epoch_2_lr = {1: 2, 3: 5, 5: 2, 6:5, 7:2, 9:5} # factor to scale base_lr with
+        #self.epoch_2_lr = {1: 2, 3: 5, 5: 2, 6:5, 7:2, 9:5} # factor to scale base_lr with
         #self.weight_decay = 5e-4
         self.best_loss = float("inf")
         self.start_epoch = 0
@@ -123,8 +123,9 @@ class Trainer(object):
         t0 = time.time()
         for epoch in range(self.start_epoch, self.num_epochs):
             t_epoch_start = time.time()
-            if epoch in self.epoch_2_lr.keys():
-                self.base_lr = self.base_lr * self.epoch_2_lr[epoch]
+            if epoch <= 10: #in self.epoch_2_lr.keys():
+                self.base_lr = self.base_lr * 2 #self.epoch_2_lr[epoch]
+                if epoch==10: self.base_lr = self.top_lr
                 self.optimizer = adjust_lr(self.base_lr, self.optimizer)
                 self.log("Updating base_lr to %s" % self.base_lr)
 
@@ -153,4 +154,5 @@ if __name__ == '__main__':
     fold = 0
     model_trainer = Trainer(fold=0)
     model_trainer.train()
+
 
