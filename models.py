@@ -29,6 +29,7 @@ class Model(nn.Module):
             print("Make sure to use 3x112x112 shaped input images")
 
         elif model_name in ["se_resnet50_v2", "se_resnext50_32x4d_v2"]:
+            """Takes in 3x112x112"""
             model_name = model_name[:-3]  # clip the _v2 part
             model = pretrainedmodels.__dict__[model_name](
                 num_classes=1000, pretrained=pretrained
@@ -48,6 +49,7 @@ class Model(nn.Module):
             print("Make sure to use 3x96x96 shaped input images")
 
         elif model_name in ["se_resnet50_v3", "se_resnext50_32x4d_v3"]:
+            """Takes in 3x96x96"""
             model_name = model_name[:-3]  # clip the _v3 part
             model = pretrainedmodels.__dict__[model_name](
                 num_classes=1000, pretrained=pretrained
@@ -62,9 +64,19 @@ class Model(nn.Module):
                 nn.Dropout(0.1),
                 nn.Linear(in_features=2048, out_features=out_features, bias=True),
             )
+        elif model_name == "nasnetamobile_v2":
+            """ Takes in 3x224x224"""
+            model_name = model_name[:-3]
+            self.model = pretrainedmodels.__dict__[model_name](num_classes=1000, pretrained=pretrained)
+            self.classifier = nn.Sequential(
+                    nn.AdaptiveAvgPool2d((1, 1)),
+                    Flatten(),
+                    nn.Dropout(0.5),
+                    nn.Linear(in_features=1056, out_features=out_features, bias=True)
+                    )
 
     def forward(self, x):
-        x = self.backbone(x)
+        x = self.model.features(x) # only backbone features
         x = self.classifier(x)
         return x
 
@@ -76,14 +88,11 @@ def get_model(model_name, out_features=1, pretrained="imagenet"):
         model._modules["last_linear"] = nn.Linear(in_features=1056, out_features=out_features, bias=True)
         return model
 
-
-
 if __name__ == "__main__":
     #model_name = "se_resnext50_32x4d_v2"
     model_name = "nasnetamobile"
 
-    #model = Model(model_name, 1, "imagenet")
-    model = get_model(model_name)
+    model = Model(model_name, 1, "imagenet")
     image = torch.Tensor(1, 3, 224, 224)
     # image = torch.Tensor(1, 3, 112, 112)
     #image = torch.Tensor(1, 3, 96, 96)

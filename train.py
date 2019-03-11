@@ -23,7 +23,7 @@ print(HOME)
 class Trainer(object):
     def __init__(self, fold):
         #model_name = "se_resnext50_32x4d_v3"
-        model_name = "nasnetamobile"
+        model_name = "nasnetamobile_v2"
         folder = "weights/11Mar_%s_fold%s" % (model_name, fold)
         print("model folder: %s" % folder)
         self.resume = False
@@ -54,21 +54,21 @@ class Trainer(object):
             "torch.cuda.FloatTensor" if self.cuda else "torch.FloatTensor"
         )
         torch.set_default_tensor_type(self.tensor_type)
-        #self.net = Model(model_name, 1)
-        self.net = get_model(model_name)
-        self.optimizer = optim.SGD(
-                    self.net.parameters(),
-                    lr=self.top_lr,
-                    momentum=self.momentum,
-        )
+        self.net = Model(model_name, 1)
+        #self.net = get_model(model_name)
         #self.optimizer = optim.SGD(
-        #    [
-        #        {"params": self.net.backbone.parameters()},
-        #        {"params": self.net.classifier.parameters(), "lr": self.top_lr},
-        #    ],
-        #    lr=self.base_lr,  # 1e-7#self.lr * 0.001,
-        #    momentum=self.momentum,
+        #            self.net.parameters(),
+        #            lr=self.top_lr,
+        #            momentum=self.momentum,
         #)
+        self.optimizer = optim.SGD(
+            [
+                {"params": self.net.model.parameters()},
+                {"params": self.net.classifier.parameters(), "lr": self.top_lr},
+            ],
+            lr=self.base_lr,  # 1e-7#self.lr * 0.001,
+            momentum=self.momentum,
+        )
         # weight_decay=self.weight_decay)
         # pdb.set_trace()
         self.scheduler = ReduceLROnPlateau(
@@ -151,12 +151,12 @@ class Trainer(object):
         t0 = time.time()
         for epoch in range(self.start_epoch, self.num_epochs):
             t_epoch_start = time.time()
-            #if epoch and epoch <= 10:  # in self.epoch_2_lr.keys():
-            #    self.base_lr = self.base_lr * 2  # self.epoch_2_lr[epoch]
-            #    if epoch == 10:
-            #        self.base_lr = self.top_lr
-            #    self.optimizer = adjust_lr(self.base_lr, self.optimizer)
-            #    self.log("Updating base_lr to %s" % self.base_lr)
+            if epoch and epoch <= 10:  # in self.epoch_2_lr.keys():
+                self.base_lr = self.base_lr * 2  # self.epoch_2_lr[epoch]
+                if epoch == 10:
+                    self.base_lr = self.top_lr
+                self.optimizer = adjust_lr(self.base_lr, self.optimizer)
+                self.log("Updating base_lr to %s" % self.base_lr)
 
             self.iterate(epoch, "train")
             state = {
@@ -182,6 +182,6 @@ class Trainer(object):
 
 
 if __name__ == "__main__":
-    fold = 1
+    fold = 2
     model_trainer = Trainer(fold=fold)
     model_trainer.train()

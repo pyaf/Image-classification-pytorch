@@ -17,3 +17,9 @@ input image size of 96x96, top_lr=7e-5, base_lr as the previous one.
 
 9Mar v3, fold 2 trained with top_lr 1e-4
 9Mar v3, fold 3 to be trained with top_lr = 5e-4
+
+11Mar nasnetamobile models with input 3x224x224 trained with RGB for first time.
+with only last_linear layer modified, use get_model function with std, mean of imagenet ONLY for prediction
+
+
+11Mar nasnetamobile_v2 implemented, with std mean of 0.5 each (as recommended by pretrainedmodels project), with adaptiveAvgPool2d, dropout, linear
