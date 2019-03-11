@@ -14,3 +14,6 @@ self.epoch_2_lr = {1: 2, 3: 5, 5: 2, 6:5, 7:2, 9:5} # factor to scale base_lr wi
 input image size of 96x96, top_lr=7e-5, base_lr as the previous one.
 
 * It is better at 32 batch size for train&val , 64 will run with a slight decrease in time, taking up almost all of the GPU memory*
+
+9Mar v3, fold 2 trained with top_lr 1e-4
+9Mar v3, fold 3 to be trained with top_lr = 5e-4

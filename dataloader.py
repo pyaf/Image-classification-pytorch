@@ -15,7 +15,7 @@ from albumentations import torch as AT
 class ImageDataset(Dataset):
     """training dataset."""
 
-    def __init__(self, fold, data_root, df_path, phase="train"):
+    def __init__(self, fold, data_root, df_path, mean, std, phase="train"):
         """
         Args:
             df (pd.DataFrame): a pandas DataFrame with image path and labels.
@@ -25,80 +25,88 @@ class ImageDataset(Dataset):
         self.phase = phase
         self.data_root = data_root
         df = pd.read_csv(df_path)
-        kfold = StratifiedKFold(20, shuffle=True, random_state=69) # 20 splits
-        train_idx, val_idx = list(kfold.split(df['id'], df['label']))[fold]
+        kfold = StratifiedKFold(20, shuffle=True, random_state=69)  # 20 splits
+        train_idx, val_idx = list(kfold.split(df["id"], df["label"]))[fold]
         train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
-        self.df = train_df if phase=="train" else val_df
-        self.fnames = self.df['id'].values
-        self.labels = self.df['label'].values.astype('float32')
+        self.df = train_df if phase == "train" else val_df
+        self.fnames = self.df["id"].values
+        self.labels = self.df["label"].values.astype("float32")
         self.num_samples = self.df.shape[0]
-        self.transform = get_transforms( phase )
+        self.transform = get_transforms(phase, mean, std)
 
     def __getitem__(self, idx):
         fname = self.fnames[idx]
-        img_path = os.path.join(self.data_root, fname + '.tif')
+        img_path = os.path.join(self.data_root, fname + ".tif")
         label = self.labels[idx]
         image = cv2.imread(img_path)
-        image = self.transform(image=image)['image']
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = self.transform(image=image)["image"]
         return fname, image, label
 
     def __len__(self):
-        #return 1000
+        # return 1000
         return len(self.df)
 
 
-def get_transforms(phase):
+def get_transforms(phase, mean, std):
     list_transforms = [
-        #albumentations.Resize(112, 112)
+        albumentations.Resize(224, 224)
     ]
     if phase == "train":
-        list_transforms.extend([
-            albumentations.RandomRotate90(p=0.5),
-            albumentations.Transpose(p=0.5),
-            albumentations.Flip(p=0.5),
-            albumentations.OneOf([
-                albumentations.CLAHE(clip_limit=2),
-                albumentations.IAASharpen(),
-                albumentations.IAAEmboss(),
-                albumentations.RandomBrightnessContrast(),
-                albumentations.JpegCompression(),
-                albumentations.Blur(),
-                albumentations.GaussNoise()], p=0.5),
-            albumentations.HueSaturationValue(p=0.5),
-            albumentations.ShiftScaleRotate(shift_limit=0.15, scale_limit=0.15, rotate_limit=45, p=0.5)])
+        list_transforms.extend(
+            [
+                albumentations.RandomRotate90(p=0.5),
+                albumentations.Transpose(p=0.5),
+                albumentations.Flip(p=0.5),
+                albumentations.OneOf(
+                    [
+                        albumentations.CLAHE(clip_limit=2),
+                        albumentations.IAASharpen(),
+                        albumentations.IAAEmboss(),
+                        albumentations.RandomBrightnessContrast(),
+                        albumentations.JpegCompression(),
+                        albumentations.Blur(),
+                        albumentations.GaussNoise(),
+                    ],
+                    p=0.5,
+                ),
+                albumentations.HueSaturationValue(p=0.5),
+                albumentations.ShiftScaleRotate(
+                    shift_limit=0.15, scale_limit=0.15, rotate_limit=45, p=0.5
+                ),
+            ]
+        )
 
-    list_transforms.extend([
-        albumentations.Normalize(p=1),
-        AT.ToTensor(),
-    ])
+    list_transforms.extend([albumentations.Normalize(mean=mean, std=std, p=1), AT.ToTensor()])
     return albumentations.Compose(list_transforms)
 
 
-def provider(fold, phase, batch_size=8, num_workers=4):
+def provider(fold, phase, mean, std, batch_size=8, num_workers=4):
     root = os.path.dirname(__file__)
     data_root = os.path.join(root, "data/train/")
     df_path = os.path.join(root, "data/train_labels.csv")
-    image_dataset = ImageDataset(
-                        fold,
-                        data_root,
-                        df_path,
-                        phase)
+    image_dataset = ImageDataset(fold, data_root, df_path, mean, std, phase)
     dataloader = DataLoader(
-                    image_dataset,
-                    batch_size=batch_size,
-                    shuffle=phase == "train",
-                    num_workers=num_workers,
-                    pin_memory=True,
-                )
+        image_dataset,
+        batch_size=batch_size,
+        shuffle=phase == "train",
+        num_workers=num_workers,
+        pin_memory=True,
+    )
     return dataloader
 
 
 if __name__ == "__main__":
     phase = "train"
     num_workers = 16
-    dataloader = provider(phase, num_workers=num_workers)
+    fold = 0
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    mean = (0.5, 0.5, 0.5)
+    std = (0.5, 0.5, 0.5)
+
+    dataloader = provider(fold, phase, mean, std, num_workers=num_workers)
     for batch in dataloader:
         fnames, images, labels = batch
         print(images.shape, labels.shape)
-    pdb.set_trace()
-
+        pdb.set_trace()
