@@ -21,23 +21,25 @@ print(HOME)
 
 
 class Trainer(object):
-    def __init__(self, fold):
+    def __init__(self):
+        fold = 2
         #model_name = "se_resnext50_32x4d_v3"
-        model_name = "nasnetamobile_v2"
+        #model_name = "nasnetamobile_v2"
+        model_name = "resnext101_32x4d"
         folder = "weights/11Mar_%s_fold%s" % (model_name, fold)
         print("model folder: %s" % folder)
-        self.resume = False
-        self.fold = fold
+        self.resume = True
         self.num_workers = 8
-        self.batch_size = {"train": 32, "val": 16}
+        self.batch_size = {"train": 64, "val": 16}
         self.top_lr = 7e-5
-        self.base_lr = self.top_lr * 0.001
+        #self.base_lr = self.top_lr * 0.01
+        self.base_lr = None
         self.momentum = 0.95
-        #mean = (0.485, 0.456, 0.406)
-        #std = (0.229, 0.224, 0.225)
-        mean = (0.5, 0.5, 0.5)
-        std = (0.5, 0.5, 0.5)
-
+        size = 96
+        mean = (0.485, 0.456, 0.406)
+        std = (0.229, 0.224, 0.225)
+        #mean = (0.5, 0.5, 0.5)
+        #std = (0.5, 0.5, 0.5)
         # self.epoch_2_lr = {1: 2, 3: 5, 5: 2, 6:5, 7:2, 9:5} # factor to scale base_lr with
         # self.weight_decay = 5e-4
         self.best_loss = float("inf")
@@ -66,7 +68,7 @@ class Trainer(object):
                 {"params": self.net.model.parameters()},
                 {"params": self.net.classifier.parameters(), "lr": self.top_lr},
             ],
-            lr=self.base_lr,  # 1e-7#self.lr * 0.001,
+            lr=self.base_lr if self.base_lr else self.top_lr,  # 1e-7#self.lr * 0.001,
             momentum=self.momentum,
         )
         # weight_decay=self.weight_decay)
@@ -89,8 +91,9 @@ class Trainer(object):
 
         self.dataloaders = {
             phase: provider(
-                self.fold,
+                fold,
                 phase,
+                size,
                 mean,
                 std,
                 batch_size=self.batch_size[phase],
@@ -105,6 +108,11 @@ class Trainer(object):
         state = torch.load(self.resume_path, map_location=lambda storage, loc: storage)
         self.net.load_state_dict(state["state_dict"])
         self.optimizer.load_state_dict(state["optimizer"])
+        if self.cuda:
+            for opt_state in self.optimizer.state.values():
+                for k, v in opt_state.items():
+                    if torch.is_tensor(v):
+                        opt_state[k] = v.to(self.device)
         self.best_loss = state["best_loss"]
         self.start_epoch = state["epoch"] + 1
 
@@ -151,12 +159,13 @@ class Trainer(object):
         t0 = time.time()
         for epoch in range(self.start_epoch, self.num_epochs):
             t_epoch_start = time.time()
-            if epoch and epoch <= 10:  # in self.epoch_2_lr.keys():
-                self.base_lr = self.base_lr * 2  # self.epoch_2_lr[epoch]
-                if epoch == 10:
-                    self.base_lr = self.top_lr
-                self.optimizer = adjust_lr(self.base_lr, self.optimizer)
-                self.log("Updating base_lr to %s" % self.base_lr)
+            if self.base_lr:
+                if epoch and epoch <= 7:  # in self.epoch_2_lr.keys():
+                    self.base_lr = self.base_lr * 2  # self.epoch_2_lr[epoch]
+                    if epoch == 7:
+                        self.base_lr = self.top_lr
+                    self.optimizer = adjust_lr(self.base_lr, self.optimizer)
+                    self.log("Updating base_lr to %s" % self.base_lr)
 
             self.iterate(epoch, "train")
             state = {
@@ -182,6 +191,5 @@ class Trainer(object):
 
 
 if __name__ == "__main__":
-    fold = 2
-    model_trainer = Trainer(fold=fold)
+    model_trainer = Trainer()
     model_trainer.train()

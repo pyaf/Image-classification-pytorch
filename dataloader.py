@@ -15,7 +15,7 @@ from albumentations import torch as AT
 class ImageDataset(Dataset):
     """training dataset."""
 
-    def __init__(self, fold, data_root, df_path, mean, std, phase="train"):
+    def __init__(self, fold, data_root, df_path, size, mean, std, phase="train"):
         """
         Args:
             df (pd.DataFrame): a pandas DataFrame with image path and labels.
@@ -32,7 +32,7 @@ class ImageDataset(Dataset):
         self.fnames = self.df["id"].values
         self.labels = self.df["label"].values.astype("float32")
         self.num_samples = self.df.shape[0]
-        self.transform = get_transforms(phase, mean, std)
+        self.transform = get_transforms(phase, size, mean, std)
 
     def __getitem__(self, idx):
         fname = self.fnames[idx]
@@ -48,9 +48,9 @@ class ImageDataset(Dataset):
         return len(self.df)
 
 
-def get_transforms(phase, mean, std):
+def get_transforms(phase, size, mean, std):
     list_transforms = [
-        albumentations.Resize(224, 224)
+        albumentations.Resize(size, size)
     ]
     if phase == "train":
         list_transforms.extend(
@@ -77,15 +77,18 @@ def get_transforms(phase, mean, std):
             ]
         )
 
-    list_transforms.extend([albumentations.Normalize(mean=mean, std=std, p=1), AT.ToTensor()])
+    list_transforms.extend([
+        albumentations.Normalize(mean=mean, std=std, p=1), AT.ToTensor()
+        ]
+    )
     return albumentations.Compose(list_transforms)
 
 
-def provider(fold, phase, mean, std, batch_size=8, num_workers=4):
+def provider(fold, phase, size, mean, std, batch_size=8, num_workers=4):
     root = os.path.dirname(__file__)
     data_root = os.path.join(root, "data/train/")
     df_path = os.path.join(root, "data/train_labels.csv")
-    image_dataset = ImageDataset(fold, data_root, df_path, mean, std, phase)
+    image_dataset = ImageDataset(fold, data_root, df_path, size,  mean, std, phase)
     dataloader = DataLoader(
         image_dataset,
         batch_size=batch_size,
@@ -105,7 +108,8 @@ if __name__ == "__main__":
     mean = (0.5, 0.5, 0.5)
     std = (0.5, 0.5, 0.5)
 
-    dataloader = provider(fold, phase, mean, std, num_workers=num_workers)
+    size = 96
+    dataloader = provider(fold, phase, size, mean, std, num_workers=num_workers)
     for batch in dataloader:
         fnames, images, labels = batch
         print(images.shape, labels.shape)

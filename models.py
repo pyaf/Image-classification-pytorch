@@ -75,6 +75,15 @@ class Model(nn.Module):
                     nn.Linear(in_features=1056, out_features=out_features, bias=True)
                     )
 
+        elif model_name == "resnext101_32x4d":
+            """Takes in 3x96x96"""
+            self.model = pretrainedmodels.__dict__[model_name](num_classes=1000, pretrained=pretrained)
+            self.classifier = nn.Sequential(
+                    nn.AdaptiveAvgPool2d((1, 1)),
+                    Flatten(),
+                    nn.Dropout(0.5),
+                    nn.Linear(in_features=2048, out_features=out_features, bias=True))
+
     def forward(self, x):
         x = self.model.features(x) # only backbone features
         x = self.classifier(x)
@@ -87,15 +96,18 @@ def get_model(model_name, out_features=1, pretrained="imagenet"):
         )
         model._modules["last_linear"] = nn.Linear(in_features=1056, out_features=out_features, bias=True)
         return model
+    else:
+        return Model(model_name, out_features, pretrained)
 
 if __name__ == "__main__":
     #model_name = "se_resnext50_32x4d_v2"
-    model_name = "nasnetamobile"
+    #model_name = "nasnetamobile"
+    model_name = "resnext101_32x4d"
 
     model = Model(model_name, 1, "imagenet")
     image = torch.Tensor(1, 3, 224, 224)
     # image = torch.Tensor(1, 3, 112, 112)
-    #image = torch.Tensor(1, 3, 96, 96)
+    image = torch.Tensor(1, 3, 96, 96)
 
     output = model(image)
     print(output.shape)

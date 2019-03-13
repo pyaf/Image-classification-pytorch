@@ -24,16 +24,14 @@ import torch.utils.data as data
 
 
 class TestDataset(data.Dataset):
-    def __init__(self, root, sample_submission_path, tta=True, mean=(104, 117, 123)):
+    def __init__(self, root, sample_submission_path, size, mean, std, tta=True):
         self.root = root
         df = pd.read_csv(sample_submission_path)
         self.fnames = list(df["id"])
         self.num_samples = len(self.fnames)
         self.transform = albumentations.Compose(
             [
-                albumentations.Resize(224, 224),
-                albumentations.Normalize(p=1),
-                AT.ToTensor(),
+                albumentations.Resize(size, size),
             ]
         )
         self.TTA = [
@@ -48,6 +46,13 @@ class TestDataset(data.Dataset):
                 ]
             ),
         ] if tta else None
+        self.last_transform = albumentations.Compose(
+                [
+                    albumentations.Normalize(mean=mean, std=std, p=1),
+                    AT.ToTensor(),
+                ]
+        )
+
 
     def __getitem__(self, idx):
         fname = self.fnames[idx]
@@ -55,10 +60,13 @@ class TestDataset(data.Dataset):
         image = cv2.imread(img_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) # ****************************
         if self.TTA:
-            images = [self.transform(image=image)["image"]]
+            images = [
+                    self.last_transform(image=self.transform(image=image)["image"])["image"]
+            ]
             for aug in self.TTA:
                 aug_img = aug(image=image)['image']
                 aug_img = self.transform(image=aug_img)["image"]
+                aug_img = self.last_transform(image=aug_img)["image"]
                 images.append(aug_img)
             return torch.stack(images, dim=0)
 
@@ -71,7 +79,6 @@ class TestDataset(data.Dataset):
 
 def get_predictions(model_name, ckpt):
     print("Using trained model at %s" % ckpt)
-    #net = Model(model_name, 1)
     net = get_model(model_name)
     state = torch.load(ckpt, map_location=lambda storage, loc: storage)
     net.load_state_dict(state["state_dict"])
@@ -91,26 +98,30 @@ def get_predictions(model_name, ckpt):
 
 if __name__ == "__main__":
 
-    models = {
-                #"se_resnext50_32x4d_v3": [
-                #        "weights/9Mar_se_resnext50_32x4d_v3_fold0/ckpt18.pth",
-                #        "weights/9Mar_se_resnext50_32x4d_v3_fold1/ckpt18.pth",
-                #        "weights/9Mar_se_resnext50_32x4d_v3_fold2/ckpt18.pth"
-                #    ]
-                "nasnetamobile":[
-                    "weights/11Mar_nasnetamobile_fold0/ckpt17.pth"
-                    ]
-            }
+    #model_name = "nasnetamobile"
+    model_name = "resnext101_32x4d"
+    fold = 1
+    ckpt = "ckpt18.pth"
+    ckpt_path = "weights/11Mar_%s_fold%s/%s" % (model_name, fold, ckpt)
     #************************************************
     # V.IMP: check input image size, and cv2.cvtColor(only used in nasnet)
     #**********************************************
     #sub_name = "9Mar_se_resnext50_32x4d_v3_fold0_1_2_allckpt18.csv"
-    sub_name = "11Mar_nasnetamobile_fold0_ckpt17.csv"
+    #sub_name = "11Mar_nasnetamobile_v2_fold2_ckpt20.csv"
+    sub_path = ckpt_path.replace("pth", "csv")
+    print("Saving predictions at %s" % sub_path)
+    #size = 224
+    size = 96
+    mean = (0.485, 0.456, 0.406)
+    std = (0.229, 0.224, 0.225)
+    #mean = (0.5, 0.5, 0.5)
+    #std = (0.5, 0.5, 0.5)
+
     use_cuda = True
     use_tta = True
     torch.set_num_threads(12)
-    num_workers = 4
-    batch_size = 8
+    num_workers = 2
+    batch_size = 4
     device = torch.device("cuda" if use_cuda else "cpu")
     if use_cuda: torch.set_default_tensor_type("torch.cuda.FloatTensor")
     else: torch.set_default_tensor_type("torch.FloatTensor")
@@ -118,27 +129,18 @@ if __name__ == "__main__":
     root = "data/test/"
     sample_submission_path = "data/sample_submission.csv"
     testset = DataLoader(
-        TestDataset(root, sample_submission_path, use_tta),
+        TestDataset(root, sample_submission_path, size, mean, std, use_tta),
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True if use_cuda else False)
     if use_cuda: cudnn.benchmark = True
 
-    all_predictions = []
-    for idx, model_name in enumerate(models.keys()):
-        for ckpt in models[model_name]:
-            predictions = get_predictions(model_name, ckpt)
-            all_predictions.append(predictions)
-
-    #pdb.set_trace()
-    predictions = np.asarray(all_predictions)
-
+    predictions = get_predictions(model_name, ckpt_path)
     test_sub = pd.read_csv(sample_submission_path)
-    sub_path = "weights/ensemble/" + sub_name
-    print("Saving predictions at %s" % sub_path)
-    for col_idx in tqdm(range(predictions.shape[1])):
-        test_sub.loc[col_idx, "label"] = predictions[:, col_idx].mean()  # .at not working
+    for idx, pred in enumerate(tqdm(predictions)):
+        test_sub.loc[idx, "label"] = pred
+
     test_sub.to_csv(sub_path, index=False)
 
 

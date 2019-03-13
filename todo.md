@@ -16,3 +16,5 @@
 
 - All pretrained models are trained for RGB, you should convert the input images to RGB domain.:
 -
+
+- Use the same conf in submission.py
