@@ -7,13 +7,9 @@ import numpy as np
 from tqdm import tqdm
 import torch.backends.cudnn as cudnn
 import time
-import pydicom
 
-# from ssd import build_ssd
 from torch.utils.data import DataLoader
-from densenet import densenet169
 
-# from dataloader import CLASSES
 from models import Model, get_model
 
 # from torchvision import albumentations
@@ -97,16 +93,13 @@ def get_predictions(model_name, num_classes, ckpt, use_tta):
 if __name__ == "__main__":
 
     model_name = "resnext101_32x4d"
-    fold = 0
-    ckpt = "ckpt21.pth"
-    ckpt_path = "weights/11Mar_%s_fold%s/%s" % (model_name, fold, ckpt)
-    # ************************************************
-    # V.IMP: check input image size, and cv2.cvtColor(only used in nasnet)
-    # **********************************************
-    sub_path = ckpt_path.replace("pth", "csv")
+    fold = 1
+    ckpt = "ckpt30.pth"
+    ckpt_path = "weights/6-7_%s_fold%s/%s" % (model_name, fold, ckpt)
+    sub_path = ckpt_path.replace(".pth", "_train.csv")
     print("Saving predictions at %s" % sub_path)
-    # size = 224
-    size = 96
+    size = 224
+    #size = 96
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
     # mean = (0.5, 0.5, 0.5)
@@ -124,8 +117,10 @@ if __name__ == "__main__":
     else:
         torch.set_default_tensor_type("torch.FloatTensor")
 
-    root = "data/test_images/"
-    sample_submission_path = "data/sample_submission.csv"
+    #root = "data/test_images/"
+    #sample_submission_path = "data/sample_submission.csv"
+    root = 'data/train_images/'
+    sample_submission_path = 'data/train.csv'
     testset = DataLoader(
         TestDataset(root, sample_submission_path, size, mean, std, use_tta),
         batch_size=batch_size,
