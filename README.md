@@ -4,6 +4,7 @@ Dependencies:
 
     * Pytorch 1.0
     * pretrainedmodels
+    * pycm
     * albumentations
     * torchvision
     * torchnet

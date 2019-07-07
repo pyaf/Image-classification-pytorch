@@ -1,5 +1,6 @@
 *.pyc
 weights/*
 data/*
+original_data/*
 __pycache__/*
 .ipynb_checkpoints/*

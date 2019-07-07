@@ -6,12 +6,15 @@ import torch
 import logging
 import traceback
 import numpy as np
+from datetime import datetime
 
 # from config import HOME
 from tensorboard_logger import log_value, log_images
 from torchnet.meter import ConfusionMeter
 from sklearn.metrics import roc_auc_score, roc_curve
+from sklearn.metrics import cohen_kappa_score
 from matplotlib import pyplot as plt
+from pycm import ConfusionMatrix
 
 plt.switch_backend("agg")
 
@@ -31,42 +34,23 @@ def logger_init(save_folder):
     return logger
 
 
-class Meter(ConfusionMeter):
-    def __init__(self, k, phase, epoch, save_folder, normalized=False):
-        ConfusionMeter.__init__(self, k, normalized=normalized)
+class Meter:
+    def __init__(self, phase, epoch, save_folder):
         self.predictions = []
         self.targets = []
-        self.threshold = 0.5  # used for confusion matrix
         self.phase = phase
         self.epoch = epoch
-        self.save_folder = save_folder
+        self.save_folder = os.path.join(save_folder, "logs")
 
     def update(self, targets, outputs):
-        self.targets.extend(targets)
-        self.predictions.extend(outputs)
-        outputs = (outputs > self.threshold).type(torch.Tensor).squeeze()
-        self.add(outputs, targets)
+        # pdb.set_trace()
+        self.targets.extend(targets.tolist())
+        self.predictions.extend(torch.argmax(outputs, dim=1).tolist())
 
-    def get_metrics(self):
-        conf = self.value().flatten()
-        total_images = np.sum(conf)
-        TN, FP, FN, TP = conf
-        acc = (TP + TN) / total_images
-        tpr = TP / (FN + TP)
-        fpr = FP / (TN + FP)
-        tnr = TN / (TN + FP)
-        fnr = FN / (TP + FN)
-        precision = TP / (TP + FP)
-        roc = roc_auc_score(self.targets, self.predictions)
-        plot_ROC(
-            roc,
-            self.targets,
-            self.predictions,
-            self.phase,
-            self.epoch,
-            self.save_folder,
-        )
-        return acc, precision, tpr, fpr, tnr, fnr, roc
+    def get_cm(self):
+        cm = ConfusionMatrix(self.targets, self.predictions)
+        qwk = cohen_kappa_score(self.targets, self.predictions, weights="quadratic")
+        return cm, qwk
 
 
 def plot_ROC(roc, targets, predictions, phase, epoch, folder):
@@ -117,26 +101,55 @@ def iter_log(log, phase, epoch, iteration, epoch_size, loss, start):
 
 def epoch_log(log, phase, epoch, epoch_loss, meter, start):
     diff = time.time() - start
-    acc, precision, tpr, fpr, tnr, fnr, roc = meter.get_metrics()
-    log("%s epoch: %d finished" % (phase, epoch))
-    log("%s Epoch: %d, loss: %0.4f, roc: %0.4f", phase, epoch, epoch_loss, roc)
-    log("Acc: %0.4f | Precision: %0.4f", acc, precision)
-    log("tnr: %0.4f | fpr: %0.4f", tnr, fpr)
-    log("fnr: %0.4f | tpr: %0.4f", fnr, tpr)
+    cm, qwk = meter.get_cm()
+    acc = cm.overall_stat["Overall ACC"]
+    log("<===%s epoch: %d finished===>" % (phase, epoch))
+    log(
+        "%s %d |  loss: %0.4f | qwk: %0.4f | acc: %0.4f"
+        % (phase, epoch, epoch_loss, qwk, acc)
+    )
+    log(cm.print_normalized_matrix())
     log("Time taken for %s phase: %02d:%02d \n", phase, diff // 60, diff % 60)
     log_value(phase + " loss", epoch_loss, epoch)
-    log_value(phase + " roc", roc, epoch)
     log_value(phase + " acc", acc, epoch)
-    log_value(phase + " precision", precision, epoch)
-    log_value(phase + " tnr", tnr, epoch)
-    log_value(phase + " fpr", fpr, epoch)
-    log_value(phase + " fnr", fnr, epoch)
-    log_value(phase + " tpr", tpr, epoch)
+    log_value(phase + " qwk", qwk, epoch)
+    obj_path = os.path.join(meter.save_folder, f"cm{phase}_{epoch}")
+    cm.save_obj(obj_path, save_stat=True, save_vector=False)
+
+    # log_value(phase + " roc", roc, epoch)
+    # log_value(phase + " precision", precision, epoch)
+    # log_value(phase + " tnr", tnr, epoch)
+    # log_value(phase + " fpr", fpr, epoch)
+    # log_value(phase + " fnr", fnr, epoch)
+    # log_value(phase + " tpr", tpr, epoch)
 
 
 def mkdir(folder):
     if not os.path.exists(folder):
         os.mkdir(folder)
+
+
+def save_hyperparameters(trainer, remark):
+    hp_file = os.path.join(trainer.save_folder, "parameters.txt")
+    time_now = datetime.now()
+    # pdb.set_trace()
+    with open(hp_file, "a") as f:
+        f.write(f"Time: {time_now}\n")
+        f.write(f"model_name: {trainer.model_name}\n")
+        f.write(f"resume: {trainer.resume}\n")
+        f.write(f"folder: {trainer.folder}\n")
+        f.write(f"fold: {trainer.fold}\n")
+        f.write(f"size: {trainer.size}\n")
+        f.write(f"top_lr: {trainer.top_lr}\n")
+        f.write(f"base_lr: {trainer.base_lr}\n")
+        f.write(f"num_workers: {trainer.num_workers}\n")
+        f.write(f"batchsize: {trainer.batch_size}\n")
+        f.write(f"momentum: {trainer.momentum}\n")
+        f.write(f"mean: {trainer.mean}\n")
+        f.write(f"std: {trainer.std}\n")
+        f.write(f"start_epoch: {trainer.start_epoch}\n")
+        f.write(f"batchsize: {trainer.batch_size}\n")
+        f.write(f"remark: {remark}\n")
 
 
 """Footnotes:

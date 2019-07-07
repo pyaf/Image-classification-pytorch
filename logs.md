@@ -25,3 +25,17 @@ with only last_linear layer modified, use get_model function with std, mean of i
 11Mar nasnetamobile_v2 implemented, with std mean of 0.5 each (as recommended by pretrainedmodels project), with adaptiveAvgPool2d, dropout, linear, top_lr = 7e-5, base_lr = top_lr * .001 ====>>>> really really bad performance. BECAUSE of not using same mean and std conf in submission script -_-
 
 11Mar nasnetamobile_v2 trained on fold3 with top_lr = 7e-5, base_lr = top_lr * .01
+
+
+
+# ADPOS diabetic retina
+
+Observations:
+
+1. I used 96x96 image size with Resnet101 on 5Jul model, results were not good. Gotta increase the input image size
+2.
+
+
+# NOTES:
+
+1. Previous competition data: https://www.kaggle.com/tanlikesmath/diabetic-retinopathy-resized

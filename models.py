@@ -67,41 +67,50 @@ class Model(nn.Module):
         elif model_name == "nasnetamobile_v2":
             """ Takes in 3x224x224"""
             model_name = model_name[:-3]
-            self.model = pretrainedmodels.__dict__[model_name](num_classes=1000, pretrained=pretrained)
+            self.model = pretrainedmodels.__dict__[model_name](
+                num_classes=1000, pretrained=pretrained
+            )
             self.classifier = nn.Sequential(
-                    nn.AdaptiveAvgPool2d((1, 1)),
-                    Flatten(),
-                    nn.Dropout(0.5),
-                    nn.Linear(in_features=1056, out_features=out_features, bias=True)
-                    )
+                nn.AdaptiveAvgPool2d((1, 1)),
+                Flatten(),
+                nn.Dropout(0.5),
+                nn.Linear(in_features=1056, out_features=out_features, bias=True),
+            )
 
         elif model_name == "resnext101_32x4d":
             """Takes in 3x96x96"""
-            self.model = pretrainedmodels.__dict__[model_name](num_classes=1000, pretrained=pretrained)
+            self.model = pretrainedmodels.__dict__[model_name](
+                num_classes=1000, pretrained=pretrained
+            )
             self.classifier = nn.Sequential(
-                    nn.AdaptiveAvgPool2d((1, 1)),
-                    Flatten(),
-                    nn.Dropout(0.5),
-                    nn.Linear(in_features=2048, out_features=out_features, bias=True))
+                nn.AdaptiveAvgPool2d((1, 1)),
+                Flatten(),
+                nn.Dropout(0.5),
+                nn.Linear(in_features=2048, out_features=out_features, bias=True),
+            )
 
     def forward(self, x):
-        x = self.model.features(x) # only backbone features
+        x = self.model.features(x)  # only backbone features
         x = self.classifier(x)
         return x
+
 
 def get_model(model_name, out_features=1, pretrained="imagenet"):
     if model_name == "nasnetamobile":
         model = pretrainedmodels.__dict__[model_name](
-                    num_classes=1000, pretrained=pretrained
+            num_classes=1000, pretrained=pretrained
         )
-        model._modules["last_linear"] = nn.Linear(in_features=1056, out_features=out_features, bias=True)
+        model._modules["last_linear"] = nn.Linear(
+            in_features=1056, out_features=out_features, bias=True
+        )
         return model
     else:
         return Model(model_name, out_features, pretrained)
 
+
 if __name__ == "__main__":
-    #model_name = "se_resnext50_32x4d_v2"
-    #model_name = "nasnetamobile"
+    # model_name = "se_resnext50_32x4d_v2"
+    # model_name = "nasnetamobile"
     model_name = "resnext101_32x4d"
 
     model = Model(model_name, 1, "imagenet")

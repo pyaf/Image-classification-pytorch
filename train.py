@@ -1,6 +1,7 @@
 import os
 import pdb
 import time
+from datetime import datetime
 import _thread
 import torch
 import torch.optim as optim
@@ -11,35 +12,39 @@ from collections import defaultdict
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tensorboard_logger import configure, log_value
-from utils import iter_log, logger_init, epoch_log, print_time, Meter, mkdir, adjust_lr
+from utils import *
 from dataloader import provider
 from shutil import copyfile
 from models import Model, get_model
 
-HOME = os.path.dirname(__file__)
-print(HOME)
+HOME = os.path.abspath(os.path.dirname(__file__))
+now = datetime.now()
+date = "%s-%s" % (now.day, now.month)
+# print(HOME)
 
 
 class Trainer(object):
     def __init__(self):
-        fold = 2
-        #model_name = "se_resnext50_32x4d_v3"
-        #model_name = "nasnetamobile_v2"
-        model_name = "resnext101_32x4d"
-        folder = "weights/11Mar_%s_fold%s" % (model_name, fold)
-        print("model folder: %s" % folder)
-        self.resume = True
+        remark = """
+                training model with increased input size and with branham's preprocessing
+                """
+        self.fold = 1
+        self.model_name = "resnext101_32x4d"
+        self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}"
+        print(f"model: {self.folder}")
+        self.resume = False
         self.num_workers = 8
-        self.batch_size = {"train": 64, "val": 16}
-        self.top_lr = 7e-5
-        #self.base_lr = self.top_lr * 0.01
-        self.base_lr = None
+        self.batch_size = {"train": 16, "val": 8}
+        self.num_classes = 5
+        self.top_lr = 1e-4
+        self.base_lr = self.top_lr * 0.001
+        # self.base_lr = None
         self.momentum = 0.95
-        size = 96
-        mean = (0.485, 0.456, 0.406)
-        std = (0.229, 0.224, 0.225)
-        #mean = (0.5, 0.5, 0.5)
-        #std = (0.5, 0.5, 0.5)
+        self.size = 224
+        self.mean = (0.485, 0.456, 0.406)
+        self.std = (0.229, 0.224, 0.225)
+        # mean = (0.5, 0.5, 0.5)
+        # std = (0.5, 0.5, 0.5)
         # self.epoch_2_lr = {1: 2, 3: 5, 5: 2, 6:5, 7:2, 9:5} # factor to scale base_lr with
         # self.weight_decay = 5e-4
         self.best_loss = float("inf")
@@ -49,20 +54,24 @@ class Trainer(object):
         self.cuda = torch.cuda.is_available()
         torch.set_num_threads(12)
         self.device = torch.device("cuda:0" if self.cuda else "cpu")
-        self.save_folder = os.path.join(HOME, folder)
+        self.images_folder = os.path.join(HOME, "data/train_images")
+        self.df_path = os.path.join(HOME, "data/train.csv")
+        self.save_folder = os.path.join(HOME, self.folder)
         self.model_path = os.path.join(self.save_folder, "model.pth")
         self.ckpt_path = os.path.join(self.save_folder, "ckpt.pth")
         self.tensor_type = (
             "torch.cuda.FloatTensor" if self.cuda else "torch.FloatTensor"
         )
         torch.set_default_tensor_type(self.tensor_type)
-        self.net = Model(model_name, 1)
-        #self.net = get_model(model_name)
-        #self.optimizer = optim.SGD(
+        self.net = Model(self.model_name, self.num_classes)
+        self.criterion = torch.nn.CrossEntropyLoss()
+        # self.criterion = torch.nn.BCEWithLogitsLoss()
+        # self.net = get_model(model_name)
+        # self.optimizer = optim.SGD(
         #            self.net.parameters(),
         #            lr=self.top_lr,
         #            momentum=self.momentum,
-        #)
+        # )
         self.optimizer = optim.SGD(
             [
                 {"params": self.net.model.parameters()},
@@ -76,7 +85,6 @@ class Trainer(object):
         self.scheduler = ReduceLROnPlateau(
             self.optimizer, mode="min", patience=2, verbose=True
         )
-        self.criterion = torch.nn.BCEWithLogitsLoss()
         logger = logger_init(self.save_folder)
         self.log = logger.info
         if self.resume:
@@ -91,16 +99,19 @@ class Trainer(object):
 
         self.dataloaders = {
             phase: provider(
-                fold,
+                self.fold,
+                self.images_folder,
+                self.df_path,
                 phase,
-                size,
-                mean,
-                std,
+                self.size,
+                self.mean,
+                self.std,
                 batch_size=self.batch_size[phase],
                 num_workers=self.num_workers,
             )
             for phase in ["train", "val"]
         }
+        save_hyperparameters(self, remark)
 
     def resume_net(self):
         self.resume_path = os.path.join(self.save_folder, "ckpt.pth")
@@ -121,13 +132,13 @@ class Trainer(object):
 
     def forward(self, images, targets):
         images = images.to(self.device)
-        targets = targets.view(-1, 1).to(self.device)
+        targets = targets.type(torch.LongTensor).to(self.device)
         outputs = self.net(images)
         loss = self.criterion(outputs, targets)
         return loss, outputs
 
     def iterate(self, epoch, phase):
-        meter = Meter(2, phase, epoch, self.save_folder)
+        meter = Meter(phase, epoch, self.save_folder)
         self.log("Starting epoch: %d | phase: %s " % (epoch, phase))
         batch_size = self.batch_size[phase]
         start = time.time()
@@ -145,9 +156,10 @@ class Trainer(object):
                 self.optimizer.step()
             running_loss += loss.item()
             # pdb.set_trace()
-            outputs = torch.sigmoid(outputs).detach()
+            # outputs = torch.sigmoid(outputs).detach()
+            outputs = outputs.detach()
             meter.update(targets.cpu(), outputs.cpu())
-            if iteration % 1000 == 0:
+            if iteration % 50 == 0:
                 iter_log(self.log, phase, epoch, iteration, total_iters, loss, start)
                 # break
         epoch_loss = running_loss / total_images
