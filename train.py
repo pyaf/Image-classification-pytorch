@@ -32,7 +32,7 @@ class Trainer(object):
         self.model_name = "resnext101_32x4d"
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}"
         print(f"model: {self.folder}")
-        self.resume = False
+        self.resume = True
         self.num_workers = 8
         self.batch_size = {"train": 16, "val": 8}
         self.num_classes = 5

@@ -163,7 +163,7 @@ if __name__ == "__main__":
     #torch.set_num_threads(12)
     num_classes = 5
     num_workers = 4
-    batch_size = 8
+    batch_size = 16
     device = torch.device("cuda" if use_cuda else "cpu")
     if use_cuda:
         torch.set_default_tensor_type("torch.cuda.FloatTensor")
