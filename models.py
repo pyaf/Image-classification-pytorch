@@ -25,6 +25,28 @@ class Model(nn.Module):
                 nn.Dropout(0.3),
                 nn.Linear(in_features=1024, out_features=out_features, bias=True),
             )
+        elif model_name == "se_resnet50_v0":
+            model_name = "se_resnet50"
+            self.model = pretrainedmodels.__dict__[model_name](
+                num_classes=1000, pretrained=pretrained
+            )
+            self.classifier = nn.Sequential(
+                nn.AdaptiveAvgPool2d((1, 1)),
+                Flatten(),
+                nn.Dropout(0.3),
+                nn.Linear(in_features=2048, out_features=out_features, bias=True),
+            )
+        elif model_name in ["densenet121"]:
+            self.model = pretrainedmodels.__dict__[model_name](
+                num_classes=1000, pretrained=pretrained
+            )
+            self.classifier = nn.Sequential(
+                nn.AdaptiveAvgPool2d((1, 1)),
+                Flatten(),
+                nn.Dropout(0.3),
+                nn.Linear(in_features=1024, out_features=out_features, bias=True),
+            )
+
 
         elif model_name == "resnext101_32x4d":
             self.model = pretrainedmodels.__dict__[model_name](

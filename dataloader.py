@@ -119,7 +119,8 @@ def provider(
         batch_size=batch_size,
         num_workers=num_workers,
         pin_memory=True,
-        sampler=datasampler
+        shuffle=True,
+        sampler=None #datasampler
     ) # shuffle and sampler are mutually exclusive args
     return dataloader
 

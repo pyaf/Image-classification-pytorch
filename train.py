@@ -30,7 +30,8 @@ class Trainer(object):
                 """
         self.fold = 0
         #self.model_name = "resnext101_32x4d"
-        self.model_name = "se_resnet50"
+        #self.model_name = "se_resnet50_v0"
+        self.model_name = "densenet121"
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}"
         print(f"model: {self.folder}")
         self.resume = False

@@ -24,7 +24,7 @@ def get_parser():
     parser = ArgumentParser()
     parser.add_argument(
         "-c",
-        "--ckpt name",
+        "--ckpt_name",
         dest="ckpt_path",
         help="ckpt path of the ckpt to use",
         metavar="FOLDER",
@@ -142,7 +142,7 @@ def get_predictions(model, testset, use_tta):
     return np.array(predictions)
 
 
-def get_best_threshold(root, model, fold, total_folds, train_df):
+def get_best_threshold(model, fold, total_folds, train_df):
     '''
     root: the folder with the images
     model: the model to use for prediction
@@ -157,6 +157,7 @@ def get_best_threshold(root, model, fold, total_folds, train_df):
     train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
     train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
     # a dataloader for val set
+    root = 'data/train_images'
     valset = DataLoader(
         TestDataset(root, val_df, size, mean, std, False),
         batch_size=batch_size,
@@ -238,7 +239,7 @@ if __name__ == "__main__":
     model.eval()
 
     train_df = pd.read_csv(train_df_path)
-    best_threshold = get_best_threshold(root, model, fold, total_folds, train_df)
+    best_threshold = get_best_threshold(model, fold, total_folds, train_df)
 
     df = pd.read_csv(sample_submission_path)
     testset = DataLoader(
