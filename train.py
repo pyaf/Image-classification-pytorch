@@ -26,9 +26,9 @@ date = "%s-%s" % (now.day, now.month)
 class Trainer(object):
     def __init__(self):
         remark = """
-                training model with increased input size and with branham's preprocessing
+                changed class weights wto [1, 2, 1, 2, 2], too much weight hurt the perf on test set last time
                 """
-        self.fold = 1
+        self.fold = 6
         self.model_name = "resnext101_32x4d"
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}"
         print(f"model: {self.folder}")
@@ -65,7 +65,7 @@ class Trainer(object):
         torch.set_default_tensor_type(self.tensor_type)
         self.net = Model(self.model_name, self.num_classes)
         self.criterion = torch.nn.CrossEntropyLoss()
-        # self.criterion = torch.nn.BCEWithLogitsLoss()
+        #self.criterion = torch.nn.BCEWithLogitsLoss()
         # self.net = get_model(model_name)
         # self.optimizer = optim.SGD(
         #            self.net.parameters(),

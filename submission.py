@@ -12,6 +12,8 @@ from torch.utils.data import DataLoader
 
 from models import Model, get_model
 
+from argparse import ArgumentParser
+
 # from torchvision import albumentations
 import albumentations
 from albumentations import torch as AT
@@ -22,10 +24,13 @@ import torch.utils.data as data
 class TestDataset(data.Dataset):
     def __init__(self, root, sample_submission_path, size, mean, std, tta=True):
         self.root = root
+        self.size = size
         df = pd.read_csv(sample_submission_path)
         self.fnames = list(df["id_code"])
         self.num_samples = len(self.fnames)
-        self.transform = albumentations.Compose([albumentations.Resize(size, size)])
+        self.transform = albumentations.Compose([
+                albumentations.Normalize(mean=mean, std=std, p=1),
+            ])
         self.TTA = (
             [
                 albumentations.RandomRotate90(p=1),
@@ -43,14 +48,28 @@ class TestDataset(data.Dataset):
             else None
         )
         self.last_transform = albumentations.Compose(
-            [albumentations.Normalize(mean=mean, std=std, p=1), AT.ToTensor()]
+            [
+                albumentations.Resize(size, size),
+                AT.ToTensor()
+            ]
         )
 
     def __getitem__(self, idx):
+        IMG_SIZE = self.size
         fname = self.fnames[idx]
         img_path = os.path.join(self.root, fname + ".png")
         image = cv2.imread(img_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # ****************************
+        #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # ****************************
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
+        image = cv2.addWeighted(
+           image, 4, cv2.GaussianBlur(image, (0, 0), IMG_SIZE / 10), -4, 128
+        )  # Ben Graham's preprocessing method [1]
+
+        ## (IMG_SIZE, IMG_SIZE) -> (IMG_SIZE, IMG_SIZE, 3)
+        image = image.reshape(IMG_SIZE, IMG_SIZE, 1)
+        image = np.repeat(image, 3, axis=-1)
+
         images = [
             self.last_transform(image=self.transform(image=image)["image"])["image"]
         ]
@@ -91,15 +110,49 @@ def get_predictions(model_name, num_classes, ckpt, use_tta):
 
 
 if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument(
+        "-c",
+        "--ckpt name",
+        dest="ckpt_path",
+        help="ckpt path of the ckpt to use",
+        metavar="FOLDER",
+    )
+    parser.add_argument(
+        "-m",
+        "-- model_name",
+        dest="model_name",
+        help="Model name",
+        default="resnext101_32x4d",
+    )
+    parser.add_argument(
+        "-p",
+        "--predict_on",
+        dest="predict_on",
+        help="predict on train or test set, options: test or train",
+        default="resnext101_32x4d",
+    )
 
-    model_name = "resnext101_32x4d"
-    fold = 1
-    ckpt = "ckpt30.pth"
-    ckpt_path = "weights/6-7_%s_fold%s/%s" % (model_name, fold, ckpt)
-    sub_path = ckpt_path.replace(".pth", "_train.csv")
+
+    args = parser.parse_args()
+    ckpt_path = args.ckpt_path
+    model_name = args.model_name
+    predict_on = args.predict_on
+    print("Using model: %s" % model_name)
+
+    if predict_on == 'test':
+        print('Predicting on test set')
+        root = "data/test_images/"
+        sample_submission_path = "data/sample_submission.csv"
+        sub_path = ckpt_path.replace(".pth", ".csv")
+    else:
+        print('Predicting on train set')
+        root = "data/train_images/"
+        sample_submission_path = "data/train.csv"
+        sub_path = ckpt_path.replace(".pth", "_train.csv")
+
     print("Saving predictions at %s" % sub_path)
     size = 224
-    #size = 96
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
     # mean = (0.5, 0.5, 0.5)
@@ -107,20 +160,16 @@ if __name__ == "__main__":
 
     use_cuda = True
     use_tta = False
-    torch.set_num_threads(12)
+    #torch.set_num_threads(12)
     num_classes = 5
-    num_workers = 2
-    batch_size = 4
+    num_workers = 4
+    batch_size = 8
     device = torch.device("cuda" if use_cuda else "cpu")
     if use_cuda:
         torch.set_default_tensor_type("torch.cuda.FloatTensor")
     else:
         torch.set_default_tensor_type("torch.FloatTensor")
 
-    #root = "data/test_images/"
-    #sample_submission_path = "data/sample_submission.csv"
-    root = 'data/train_images/'
-    sample_submission_path = 'data/train.csv'
     testset = DataLoader(
         TestDataset(root, sample_submission_path, size, mean, std, use_tta),
         batch_size=batch_size,

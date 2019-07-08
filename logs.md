@@ -33,9 +33,12 @@ with only last_linear layer modified, use get_model function with std, mean of i
 Observations:
 
 1. I used 96x96 image size with Resnet101 on 5Jul model, results were not good. Gotta increase the input image size
-2.
+2. 143 Images in the training set have duplicates (compared with hashes), out of those 79 have duplicates with different diagnosis label. Test set has 8 duplicates.
 
 
 # NOTES:
 
 1. Previous competition data: https://www.kaggle.com/tanlikesmath/diabetic-retinopathy-resized
+2. Model training slow? (GPU utilization low?), speed up the dataloader, the __getitem__() is the culprit, too much preprocessing before transformation? save the damn thing in npy files bro --> 95% + utilization of GPU
+3.
+
