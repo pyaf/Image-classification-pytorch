@@ -9,6 +9,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader, Dataset, sampler
 from torchvision.datasets.folder import pil_loader
 from sklearn.model_selection import train_test_split, StratifiedKFold
+from utils import to_multi_label
 import albumentations
 from albumentations import torch as AT
 
@@ -33,8 +34,8 @@ class ImageDataset(Dataset):
         self.fnames = self.df["id_code"].values
         self.labels = self.df["diagnosis"].values.astype("int64")
         self.num_classes = len(np.unique(self.labels))
-        # self.labels = np.eye(self.num_classes)[self.labels] # to one-hot
-        # CrossEntropyLoss doesn't expect inputs to be one-hot, but indices
+        self.labels = to_multi_label(self.labels, self.num_classes) # [1]
+        # self.labels = np.eye(self.num_classes)[self.labels]
         self.transform = get_transforms(phase, size, mean, std)
 
     def __getitem__(self, idx):
@@ -106,7 +107,7 @@ def provider(
     df = pd.read_csv(df_path)
     bad_indices = np.load('data/bad_train_indices.npy')
     df = df.drop(df.index[bad_indices]) # remove duplicates having diff diagnosis
-    kfold = StratifiedKFold(10, shuffle=True, random_state=69)  # 20 splits
+    kfold = StratifiedKFold(5, shuffle=True, random_state=69)  # 20 splits
     train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
     train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
     df = train_df if phase == "train" else val_df
@@ -156,5 +157,7 @@ Footnotes:
 
 https://github.com/btgraham/SparseConvNet/tree/kaggle_Diabetic_Retinopathy_competition
 
+[1] CrossEntropyLoss doesn't expect inputs to be one-hot, but indices
 [2] .value_counts() returns in descending order of counts (not sorted by class numbers :)
+
 """

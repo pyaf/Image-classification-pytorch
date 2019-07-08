@@ -34,6 +34,22 @@ def logger_init(save_folder):
     return logger
 
 
+def to_multi_label(target, classes):
+    '''[0, 0, 1, 0] to [1, 1, 1, 0]'''
+    multi_label = np.zeros((len(target), classes))
+    for i in range(len(target)):
+        j = target[i] + 1
+        multi_label[i][:j] = 1
+    return np.array(multi_label)
+
+
+def get_preds(arr, num_cls):
+    ''' takes in thresholded predictions (num_samples, num_cls) and returns (num_samples,)
+    [3], arr needs to be a numpy array, NOT torch tensor'''
+    mask = arr == 0
+    #pdb.set_trace()
+    return np.clip(np.where(mask.any(1), mask.argmax(1), num_cls) - 1, 0, num_cls-1)
+
 class Meter:
     def __init__(self, phase, epoch, save_folder):
         self.predictions = []
@@ -41,11 +57,21 @@ class Meter:
         self.phase = phase
         self.epoch = epoch
         self.save_folder = os.path.join(save_folder, "logs")
+        self.num_classes = 5 # hard coded, yeah, I know
 
     def update(self, targets, outputs):
-        # pdb.set_trace()
+        # get multi-label to single label
+        targets = torch.sum(targets, 1) - 1
+        targets = targets.type(torch.LongTensor)
+        #outputs = torch.sum((outputs > 0.5), 1) - 1
+
+        #pdb.set_trace()
+        outputs = (outputs > 0.5).numpy()
+        outputs = get_preds(outputs, self.num_classes)
+
         self.targets.extend(targets.tolist())
-        self.predictions.extend(torch.argmax(outputs, dim=1).tolist())
+        self.predictions.extend(outputs.tolist())
+        #self.predictions.extend(torch.argmax(outputs, dim=1).tolist()) #[2]
 
     def get_cm(self):
         cm = ConfusionMatrix(self.targets, self.predictions)
@@ -155,5 +181,11 @@ def save_hyperparameters(trainer, remark):
 """Footnotes:
 
 [1]: https://stackoverflow.com/questions/21884271/warning-about-too-many-open-figures
+[2]: Used in cross-entropy loss, one-hot to single label
 
+[3]: # argmax returns earliest/first index of the maximum value along the given axis
+ get_preds ka ye hai ki agar kisi output me zero nahi / sare one hain to 5 nahi to jis index par pehli baar zero aya wahi lena hai, example:
+[[1, 1, 1, 1, 1], [1, 1, 0, 0, 0], [1, 0, 1, 1, 0], [0, 0, 0, 0, 0]]
+-> [4, 1, 0, 0]
+baki clip karna hai (0, 4) me, we can get -1 for cases with all zeros.
 """

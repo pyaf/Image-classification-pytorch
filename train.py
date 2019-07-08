@@ -28,11 +28,12 @@ class Trainer(object):
         remark = """
                 changed class weights wto [1, 2, 1, 2, 2], too much weight hurt the perf on test set last time
                 """
-        self.fold = 6
-        self.model_name = "resnext101_32x4d"
+        self.fold = 0
+        #self.model_name = "resnext101_32x4d"
+        self.model_name = "se_resnet50"
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}"
         print(f"model: {self.folder}")
-        self.resume = True
+        self.resume = False
         self.num_workers = 8
         self.batch_size = {"train": 16, "val": 8}
         self.num_classes = 5
@@ -64,9 +65,8 @@ class Trainer(object):
         )
         torch.set_default_tensor_type(self.tensor_type)
         self.net = Model(self.model_name, self.num_classes)
-        self.criterion = torch.nn.CrossEntropyLoss()
-        #self.criterion = torch.nn.BCEWithLogitsLoss()
-        # self.net = get_model(model_name)
+        #self.criterion = torch.nn.CrossEntropyLoss()
+        self.criterion = torch.nn.BCELoss() # requires sigmoid pred inputs
         # self.optimizer = optim.SGD(
         #            self.net.parameters(),
         #            lr=self.top_lr,
@@ -81,7 +81,6 @@ class Trainer(object):
             momentum=self.momentum,
         )
         # weight_decay=self.weight_decay)
-        # pdb.set_trace()
         self.scheduler = ReduceLROnPlateau(
             self.optimizer, mode="min", patience=2, verbose=True
         )
@@ -132,8 +131,10 @@ class Trainer(object):
 
     def forward(self, images, targets):
         images = images.to(self.device)
-        targets = targets.type(torch.LongTensor).to(self.device)
+        #targets = targets.type(torch.LongTensor).to(self.device) # [1]
+        targets = targets.type(torch.FloatTensor).to(self.device)
         outputs = self.net(images)
+        outputs = torch.sigmoid(outputs)
         loss = self.criterion(outputs, targets)
         return loss, outputs
 
@@ -156,7 +157,6 @@ class Trainer(object):
                 self.optimizer.step()
             running_loss += loss.item()
             # pdb.set_trace()
-            # outputs = torch.sigmoid(outputs).detach()
             outputs = outputs.detach()
             meter.update(targets.cpu(), outputs.cpu())
             if iteration % 50 == 0:
@@ -205,3 +205,10 @@ class Trainer(object):
 if __name__ == "__main__":
     model_trainer = Trainer()
     model_trainer.train()
+
+
+'''Footnotes
+[1]: Crossentropy loss functions expects targets to be in labels (not one-hot) and of type
+LongTensor, BCELoss expects targets to be FloatTensor
+
+'''
