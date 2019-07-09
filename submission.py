@@ -24,18 +24,17 @@ def get_parser():
     parser = ArgumentParser()
     parser.add_argument(
         "-c",
-        "--ckpt_name",
+        "--ckpt_path",
         dest="ckpt_path",
-        help="ckpt path of the ckpt to use",
-        metavar="FOLDER",
+        help="relative path to the saved model checkpoint to be used",
     )
-    parser.add_argument(
-        "-m",
-        "-- model_name",
-        dest="model_name",
-        help="Model name",
-        default="se_resnet50",
-    )
+    #parser.add_argument(
+    #    "-m",
+    #    "-- model_name",
+    #    dest="model_name",
+    #    help="Model name",
+    #    default="se_resnet50",
+    #)
     parser.add_argument(
         "-p",
         "--predict_on",
@@ -43,13 +42,13 @@ def get_parser():
         help="predict on train or test set, options: test or train",
         default="resnext101_32x4d",
     )
-    parser.add_argument(
-        "-f",
-        "--fold",
-        dest="fold",
-        help="which fold the model was trained on?",
-        default="resnext101_32x4d",
-    )
+    #parser.add_argument(
+    #    "-f",
+    #    "--fold",
+    #    dest="fold",
+    #    help="which fold the model was trained on?",
+    #    default="resnext101_32x4d",
+    #)
 
 
     return parser
@@ -95,9 +94,9 @@ class TestDataset(data.Dataset):
         #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # ****************************
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
-        image = cv2.addWeighted(
-           image, 4, cv2.GaussianBlur(image, (0, 0), IMG_SIZE / 10), -4, 128
-        )  # Ben Graham's preprocessing method [1]
+        #image = cv2.addWeighted(
+        #   image, 4, cv2.GaussianBlur(image, (0, 0), IMG_SIZE / 10), -4, 128
+        #)  # Ben Graham's preprocessing method [1]
 
         ## (IMG_SIZE, IMG_SIZE) -> (IMG_SIZE, IMG_SIZE, 3)
         image = image.reshape(IMG_SIZE, IMG_SIZE, 1)
@@ -186,16 +185,22 @@ def get_best_threshold(model, fold, total_folds, train_df):
     return best_threshold
 
 
+def get_model_name_fold(ckpt_path):
+    # example ckpt_path = weights/9-7_{modelname}_fold0_text/ckpt.pth
+    model_folder = ckpt_path.split('/')[1] # 9-7_{modelname}_fold0_text
+    model_name = model_folder.split('_')[1] # modelname
+    fold = model_folder.split('_')[2] # fold0
+    fold = fold.split('fold')[-1] # 0
+    return model_name, int(fold)
 
 
 if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
     ckpt_path = args.ckpt_path
-    model_name = args.model_name
     predict_on = args.predict_on
-    fold = int(args.fold)
-    total_folds = 5
+    model_name, fold = get_model_name_fold(ckpt_path)
+
     print("Using model: %s | fold: %s" % (model_name, fold))
     if predict_on == 'test':
         print('Predicting on test set')
@@ -208,16 +213,14 @@ if __name__ == "__main__":
         sample_submission_path = "data/train.csv"
         sub_path = ckpt_path.replace(".pth", "_train.csv")
 
+
+    total_folds = 5
     train_df_path = 'data/train.csv'
     size = 224
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
-    # mean = (0.5, 0.5, 0.5)
-    # std = (0.5, 0.5, 0.5)
-
     use_cuda = True
     use_tta = False
-    #torch.set_num_threads(12)
     num_classes = 5
     num_workers = 4
     batch_size = 8
@@ -227,9 +230,9 @@ if __name__ == "__main__":
     else:
         torch.set_default_tensor_type("torch.FloatTensor")
 
-
     if use_cuda:
         cudnn.benchmark = True
+
     print("Using trained model at %s" % ckpt_path)
     model = get_model(model_name, num_classes, pretrained=None)
     state = torch.load(ckpt_path, map_location=lambda storage, loc: storage)

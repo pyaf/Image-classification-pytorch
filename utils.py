@@ -3,6 +3,7 @@ import pdb
 import cv2
 import time
 import torch
+import scipy
 import logging
 import traceback
 import numpy as np
@@ -50,6 +51,14 @@ def get_preds(arr, num_cls):
     #pdb.set_trace()
     return np.clip(np.where(mask.any(1), mask.argmax(1), num_cls) - 1, 0, num_cls-1)
 
+
+def compute_score_inv(threshold, predictions, targets, num_classes):
+    predictions = predictions > threshold
+    predictions = get_preds(predictions, num_classes)
+    score = cohen_kappa_score(predictions, targets, weights='quadratic')
+    return 1 - score
+
+
 class Meter:
     def __init__(self, phase, epoch, save_folder):
         self.predictions = []
@@ -58,6 +67,7 @@ class Meter:
         self.epoch = epoch
         self.save_folder = os.path.join(save_folder, "logs")
         self.num_classes = 5 # hard coded, yeah, I know
+        self.best_threshold = 0.5
 
     def update(self, targets, outputs):
         # get multi-label to single label
@@ -66,14 +76,28 @@ class Meter:
         #outputs = torch.sum((outputs > 0.5), 1) - 1
 
         #pdb.set_trace()
-        outputs = (outputs > 0.5).numpy()
-        outputs = get_preds(outputs, self.num_classes)
-
         self.targets.extend(targets.tolist())
         self.predictions.extend(outputs.tolist())
         #self.predictions.extend(torch.argmax(outputs, dim=1).tolist()) #[2]
 
+    def get_best_threshold(self):
+        '''Used in the val phase of iteration, see [4]'''
+        self.predictions = np.array(self.predictions)
+        self.targets = np.array(self.targets)
+        simplex = scipy.optimize.minimize(
+            compute_score_inv,
+            0.5,
+            args=(self.predictions, self.targets, self.num_classes),
+            method='nelder-mead'
+        )
+        self.best_threshold = simplex['x'][0]
+        print("Best threshold: %s" % self.best_threshold)
+        return self.best_threshold
+
     def get_cm(self):
+        threshold = self.best_threshold
+        self.predictions = np.array(self.predictions) > threshold # [5]
+        self.predictions = get_preds(self.predictions, self.num_classes)
         cm = ConfusionMatrix(self.targets, self.predictions)
         qwk = cohen_kappa_score(self.targets, self.predictions, weights="quadratic")
         return cm, qwk
@@ -181,6 +205,7 @@ def save_hyperparameters(trainer, remark):
 """Footnotes:
 
 [1]: https://stackoverflow.com/questions/21884271/warning-about-too-many-open-figures
+
 [2]: Used in cross-entropy loss, one-hot to single label
 
 [3]: # argmax returns earliest/first index of the maximum value along the given axis
@@ -188,4 +213,12 @@ def save_hyperparameters(trainer, remark):
 [[1, 1, 1, 1, 1], [1, 1, 0, 0, 0], [1, 0, 1, 1, 0], [0, 0, 0, 0, 0]]
 -> [4, 1, 0, 0]
 baki clip karna hai (0, 4) me, we can get -1 for cases with all zeros.
+
+[4]: get_best_threshold is used in the validation phase, during each phase (train/val) outputs and targets are accumulated. At the end of train phase a threshold of 0.5 is used for
+generating the final predictions and henceforth for the computation of different metrics.
+Now for the validation phase, best_threshold function is used to compute the optimum threshold so that the qwk is minimum and that threshold is used to compute the metrics.
+
+It can be argued ki why are we using 0.5 for train, then, well we used 0.5 for both train/val so far, so if we are computing this val set best threshold, then not only it can be used to best evaluate the model on val set, it can also be used during the test time prediction as it is being saved with each ckpt.pth
+
+[5]: np.array because it's a list and gets converted to np.array in get_best_threshold function only which is called in val phase and not training phase
 """

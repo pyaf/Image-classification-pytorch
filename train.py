@@ -31,8 +31,10 @@ class Trainer(object):
         self.fold = 0
         #self.model_name = "resnext101_32x4d"
         #self.model_name = "se_resnet50_v0"
+
         self.model_name = "densenet121"
-        self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}"
+        ext_text = "rbg"
+        self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
         print(f"model: {self.folder}")
         self.resume = False
         self.num_workers = 8
@@ -163,10 +165,13 @@ class Trainer(object):
             if iteration % 50 == 0:
                 iter_log(self.log, phase, epoch, iteration, total_iters, loss, start)
                 # break
+        best_threshold = 0.5
+        if phase == "val":
+            best_threshold = meter.get_best_threshold()
         epoch_loss = running_loss / total_images
         epoch_log(self.log, phase, epoch, epoch_loss, meter, start)
         torch.cuda.empty_cache()
-        return epoch_loss
+        return epoch_loss, best_threshold
 
     def train(self):
         t0 = time.time()
@@ -187,8 +192,9 @@ class Trainer(object):
                 "state_dict": self.net.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
             }
-            torch.save(state, self.ckpt_path)
-            val_loss = self.iterate(epoch, "val")
+            val_loss, best_threshold = self.iterate(epoch, "val")
+            state["best_threshold"] = best_threshold
+            torch.save(state, self.ckpt_path) # [2]
             self.scheduler.step(val_loss)
             if val_loss < self.best_loss:
                 self.log("******** New optimal found, saving state ********")
@@ -211,5 +217,7 @@ if __name__ == "__main__":
 '''Footnotes
 [1]: Crossentropy loss functions expects targets to be in labels (not one-hot) and of type
 LongTensor, BCELoss expects targets to be FloatTensor
+
+[2]: the ckpt.pth is saved after each train and val phase, val phase is neccessary becausue we want the best_threshold to be computed on the val set., Don't worry, the probability of your system going down just after a crucial training phase is low, just wait a few minutes for the val phase :p
 
 '''

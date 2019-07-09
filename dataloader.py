@@ -41,7 +41,7 @@ class ImageDataset(Dataset):
     def __getitem__(self, idx):
         fname = self.fnames[idx]
         label = self.labels[idx]
-        image = np.load(os.path.join(self.images_folder, 'npy', fname + '.npy'))
+        image = np.load(os.path.join(self.images_folder, 'npy_rgb', fname + '.npy'))
         image = self.transform(image=image)["image"]
         return fname, image, label
 
@@ -94,7 +94,7 @@ def get_sampler(df):
     labels, label_counts = np.unique(df['diagnosis'].values, return_counts=True) # [2]
     #class_weights = max(label_counts) / label_counts # higher count, lower weight
     #class_weights = class_weights / sum(class_weights)
-    class_weights = [1, 2, 1, 2, 2]
+    class_weights = [1, 1.5, 1, 1.5, 1.5]
     print("classes, weights", labels, class_weights)
     dataset_weights = [class_weights[idx] for idx in df['diagnosis']]
     datasampler = sampler.WeightedRandomSampler(dataset_weights, len(df))
