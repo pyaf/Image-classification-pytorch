@@ -30,11 +30,12 @@ class Trainer(object):
                 """
         self.fold = 0
         self.total_folds = 5
+        self.class_weights = [1, 1.3, 1, 1.3, 1]
         #self.model_name = "resnext101_32x4d"
         #self.model_name = "se_resnet50_v0"
 
         self.model_name = "densenet121"
-        ext_text = "rgb"
+        ext_text = "rgb_cw1"
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
         print(f"model: {self.folder}")
         self.resume = False
@@ -112,6 +113,7 @@ class Trainer(object):
                 self.size,
                 self.mean,
                 self.std,
+                class_weights = self.class_weights,
                 batch_size=self.batch_size[phase],
                 num_workers=self.num_workers,
             )

@@ -90,11 +90,12 @@ def get_transforms(phase, size, mean, std):
     return albumentations.Compose(list_transforms)
 
 
-def get_sampler(df):
-    labels, label_counts = np.unique(df['diagnosis'].values, return_counts=True) # [2]
-    #class_weights = max(label_counts) / label_counts # higher count, lower weight
-    #class_weights = class_weights / sum(class_weights)
-    class_weights = [1, 1.5, 1, 1.5, 1.5]
+def get_sampler(df, class_weights=None):
+    if class_weights is None:
+        labels, label_counts = np.unique(df['diagnosis'].values, return_counts=True) # [2]
+        #class_weights = max(label_counts) / label_counts # higher count, lower weight
+        #class_weights = class_weights / sum(class_weights)
+        class_weights = [1, 1.3, 1, 1.3, 1]
     print("classes, weights", labels, class_weights)
     dataset_weights = [class_weights[idx] for idx in df['diagnosis']]
     datasampler = sampler.WeightedRandomSampler(dataset_weights, len(df))
@@ -102,7 +103,7 @@ def get_sampler(df):
 
 
 def provider(
-    fold, total_folds, images_folder, df_path, phase, size, mean, std, batch_size=8, num_workers=4
+    fold, total_folds, images_folder, df_path, phase, size, mean, std, class_weights=None, batch_size=8, num_workers=4
 ):
     df = pd.read_csv(df_path)
     bad_indices = np.load('data/bad_train_indices.npy')
@@ -119,14 +120,18 @@ def provider(
     df = train_df if phase == "train" else val_df
 
     image_dataset = ImageDataset(df, images_folder, size, mean, std, phase)
-    datasampler = get_sampler(df) if phase == "train" else None
+
+    datasampler = None
+    if phase == "train" and class_weights:
+        datasampler = get_sampler(df)
+
     dataloader = DataLoader(
         image_dataset,
         batch_size=batch_size,
         num_workers=num_workers,
         pin_memory=True,
-        shuffle=True,
-        sampler=None #datasampler
+        shuffle=True if datasampler is None else False,
+        sampler=datasampler
     ) # shuffle and sampler are mutually exclusive args
     return dataloader
 

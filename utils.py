@@ -191,6 +191,7 @@ def save_hyperparameters(trainer, remark):
         f.write(f"folder: {trainer.folder}\n")
         f.write(f"fold: {trainer.fold}\n")
         f.write(f"total_folds: {trainer.total_folds}\n")
+        f.write(f"sampling class weights: {trainer.class_weights}\n")
         f.write(f"size: {trainer.size}\n")
         f.write(f"top_lr: {trainer.top_lr}\n")
         f.write(f"base_lr: {trainer.base_lr}\n")

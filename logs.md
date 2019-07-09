@@ -83,8 +83,8 @@ Some informations:
 
 * weights/9-7_densenet121_fold0_rbg_ext: same as above, trained on npy_rgb of external dataset, the one from previouss competition, was performing poorly on original train set, total_folds=10
 
-* 10 Jul: weights/10-7_densenet121_fold_rgb: trained with val set sanctity on original dataset, total_folds = 5
-
+* 10 Jul: weights/10-7_densenet121_fold0_rgb: trained with val set sanctity on original dataset, total_folds = 5
+* 10 Jul: weights/10-7_densenet121_fold0_rgb_cw1: with classweights 1, 1.3, 1, 1.3, 1
 
 # TODO:
 
