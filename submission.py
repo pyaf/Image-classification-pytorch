@@ -91,16 +91,16 @@ class TestDataset(data.Dataset):
         fname = self.fnames[idx]
         img_path = os.path.join(self.root, fname + ".png")
         image = cv2.imread(img_path)
-        #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # ****************************
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # ****************************
+        #image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
         #image = cv2.addWeighted(
         #   image, 4, cv2.GaussianBlur(image, (0, 0), IMG_SIZE / 10), -4, 128
         #)  # Ben Graham's preprocessing method [1]
 
         ## (IMG_SIZE, IMG_SIZE) -> (IMG_SIZE, IMG_SIZE, 3)
-        image = image.reshape(IMG_SIZE, IMG_SIZE, 1)
-        image = np.repeat(image, 3, axis=-1)
+        #image = image.reshape(IMG_SIZE, IMG_SIZE, 1)
+        #image = np.repeat(image, 3, axis=-1)
 
         images = [
             self.last_transform(image=self.transform(image=image)["image"])["image"]
@@ -141,7 +141,7 @@ def get_predictions(model, testset, use_tta):
     return np.array(predictions)
 
 
-def get_best_threshold(model, fold, total_folds, train_df):
+def get_best_threshold(model, fold, total_folds):
     '''
     root: the folder with the images
     model: the model to use for prediction
@@ -150,6 +150,7 @@ def get_best_threshold(model, fold, total_folds, train_df):
     train_df: training dataframe
     '''
 
+    train_df_path = 'data/train.csv'
     bad_indices = np.load('data/bad_train_indices.npy')
     df = train_df.drop(train_df.index[bad_indices]) # remove duplicates
     kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
@@ -215,7 +216,6 @@ if __name__ == "__main__":
 
 
     total_folds = 5
-    train_df_path = 'data/train.csv'
     size = 224
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
@@ -238,11 +238,12 @@ if __name__ == "__main__":
     state = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
     model.load_state_dict(state["state_dict"])
     epoch = state["epoch"]
+    best_threshold = state["best_threshold"]
     model.to(device)
     model.eval()
-
-    train_df = pd.read_csv(train_df_path)
-    best_threshold = get_best_threshold(model, fold, total_folds, train_df)
+    print("Model from Epoch:", epoch)
+    print("best threshold: ", best_threshold)
+    #best_threshold = get_best_threshold(model, fold, total_folds)
 
     df = pd.read_csv(sample_submission_path)
     testset = DataLoader(

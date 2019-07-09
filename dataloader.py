@@ -102,14 +102,20 @@ def get_sampler(df):
 
 
 def provider(
-    fold, images_folder, df_path, phase, size, mean, std, batch_size=8, num_workers=4
+    fold, total_folds, images_folder, df_path, phase, size, mean, std, batch_size=8, num_workers=4
 ):
     df = pd.read_csv(df_path)
     bad_indices = np.load('data/bad_train_indices.npy')
-    df = df.drop(df.index[bad_indices]) # remove duplicates having diff diagnosis
-    kfold = StratifiedKFold(5, shuffle=True, random_state=69)  # 20 splits
+    dup_indices = np.load('data/dups_with_same_diagnosis.npy') # [3]
+    duplicates = df.iloc[dup_indices]
+    all_dups = np.array(list(bad_indices) + list(dup_indices))
+    df = df.drop(df.index[all_dups]) # remove duplicates and split train/val
+
+    kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)  # 20 splits
     train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
     train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
+    train_df = train_df.append(duplicates, ignore_index=True) # add dups, not bad ones
+    #pdb.set_trace()
     df = train_df if phase == "train" else val_df
 
     image_dataset = ImageDataset(df, images_folder, size, mean, std, phase)
@@ -129,6 +135,7 @@ if __name__ == "__main__":
     phase = "train"
     num_workers = 0
     fold = 0
+    total_folds = 5
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
     mean = (0.5, 0.5, 0.5)
@@ -137,11 +144,13 @@ if __name__ == "__main__":
     size = 224
 
     root = os.path.dirname(__file__)  # data folder
-    images_folder = os.path.join(root, "data/train_images/")  # contains train images
-    df_path = os.path.join(root, "data/train.csv")  # contains train ids and labels
+    data_folder = 'data'
+    #data_folder = 'external_data'
+    images_folder = os.path.join(root, data_folder, "train_images/")  #
+    df_path = os.path.join(root, data_folder, "train.csv")  #
 
     dataloader = provider(
-        fold, images_folder, df_path, phase, size, mean, std, num_workers=num_workers
+        fold, total_folds, images_folder, df_path, phase, size, mean, std, num_workers=num_workers
     )
     total_labels = []
     total_len = len(dataloader)
@@ -149,7 +158,7 @@ if __name__ == "__main__":
         fnames, images, labels = batch
         print("%d/%d" % (idx, total_len), images.shape, labels.shape, labels)
         total_labels.extend(labels.tolist())
-        pdb.set_trace()
+        #pdb.set_trace()
     print(np.unique(total_labels, return_counts=True))
 
 
@@ -161,4 +170,5 @@ https://github.com/btgraham/SparseConvNet/tree/kaggle_Diabetic_Retinopathy_compe
 [1] CrossEntropyLoss doesn't expect inputs to be one-hot, but indices
 [2] .value_counts() returns in descending order of counts (not sorted by class numbers :)
 
+[3]: bad_indices are those which have conflicting diagnosises, duplicates are those which have same duplicates, we shouldn't let them split in train and val set, gotta maintain the sanctity of val set
 """

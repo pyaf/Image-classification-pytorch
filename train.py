@@ -26,19 +26,20 @@ date = "%s-%s" % (now.day, now.month)
 class Trainer(object):
     def __init__(self):
         remark = """
-                changed class weights wto [1, 2, 1, 2, 2], too much weight hurt the perf on test set last time
+        total folds 5, training on main data, with val set sanctity
                 """
         self.fold = 0
+        self.total_folds = 5
         #self.model_name = "resnext101_32x4d"
         #self.model_name = "se_resnet50_v0"
 
         self.model_name = "densenet121"
-        ext_text = "rbg"
+        ext_text = "rgb"
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
         print(f"model: {self.folder}")
         self.resume = False
         self.num_workers = 8
-        self.batch_size = {"train": 16, "val": 8}
+        self.batch_size = {"train": 32, "val": 8}
         self.num_classes = 5
         self.top_lr = 1e-4
         self.base_lr = self.top_lr * 0.001
@@ -58,8 +59,10 @@ class Trainer(object):
         self.cuda = torch.cuda.is_available()
         torch.set_num_threads(12)
         self.device = torch.device("cuda:0" if self.cuda else "cpu")
-        self.images_folder = os.path.join(HOME, "data/train_images")
-        self.df_path = os.path.join(HOME, "data/train.csv")
+        data_folder = 'data'
+        #data_folder = 'external_data'
+        self.images_folder = os.path.join(HOME, data_folder, "train_images")
+        self.df_path = os.path.join(HOME, data_folder, "train.csv")
         self.save_folder = os.path.join(HOME, self.folder)
         self.model_path = os.path.join(self.save_folder, "model.pth")
         self.ckpt_path = os.path.join(self.save_folder, "ckpt.pth")
@@ -102,6 +105,7 @@ class Trainer(object):
         self.dataloaders = {
             phase: provider(
                 self.fold,
+                self.total_folds,
                 self.images_folder,
                 self.df_path,
                 phase,

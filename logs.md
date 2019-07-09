@@ -34,6 +34,9 @@ Observations:
 
 1. I used 96x96 image size with Resnet101 on 5Jul model, results were not good. Gotta increase the input image size
 2. 143 Images in the training set have duplicates (compared with hashes), out of those 79 have duplicates with different diagnosis label. Test set has 8 duplicates.
+3. If GPU utilization is ~98% you can't help it, it's not the CPU which is the bottelneck here.
+4. As I'm removing only bad ones from dataset, and there are still many duplicates in the there, so it is possible that those duplicates are distributed in train-val set, make sure all those duplicates are either in val set or train set!!!!!!!!!!!!!!!!!!!
+5.
 
 
 # NOTES:
@@ -57,6 +60,14 @@ Implemented get_best_threshold for val phase during training, it will be saved w
 
 I've created a npy file with only read, bgr2rbg, resize, will be training the model on this dataset, using modified class weights for data sampling kinda close to 1 for each class. Don't wanna disturb the data distribution as the dataset is very small.
 
+didn't help!
+
+
+
+9-7_densenet121_fold0_rgb_ext: Training the model on external data, class weights to 1, 1.5, 1, 1.5, 1.5, total folds =10
+
+
+
 Some informations:
 
 * data/train_images/npy * files are images after cv2.read, BGR2GRAY, resize (224), addWeighted gaussian blur, reshape, repeat, save
@@ -70,3 +81,13 @@ Some informations:
 
 9 Jul: weights/9-7_densenet121_fold0_rbg to be trained on npy_rgb with class weights [1, 1.5, 1, 1.5, 1.5] with best threshold on val set being saved with each checkpoint. *The submission.py* needs to be modified accordingly. Gotta remove the best_thresshold function from there.
 
+* weights/9-7_densenet121_fold0_rbg_ext: same as above, trained on npy_rgb of external dataset, the one from previouss competition, was performing poorly on original train set, total_folds=10
+
+* 10 Jul: weights/10-7_densenet121_fold_rgb: trained with val set sanctity on original dataset, total_folds = 5
+
+
+# TODO:
+
+1. Add kappa optimizer
+2. Insure val set and train set are disjoints, watch-out for duplicates!
+3. Crop images in datapipeline
