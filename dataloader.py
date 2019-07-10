@@ -41,7 +41,8 @@ class ImageDataset(Dataset):
     def __getitem__(self, idx):
         fname = self.fnames[idx]
         label = self.labels[idx]
-        image = np.load(os.path.join(self.images_folder, 'npy_rgb', fname + '.npy'))
+        path = os.path.join(self.images_folder, 'npy_bengrahm_color', fname + '.npy')
+        image = np.load(path)
         image = self.transform(image=image)["image"]
         return fname, image, label
 
@@ -58,8 +59,8 @@ def get_transforms(phase, size, mean, std):
     if phase == "train":
         list_transforms.extend(
             [
-                albumentations.Rotate(limit=360, p=0.5),
-                #albumentations.Transpose(p=0.5),
+                #albumentations.Rotate(limit=360, p=0.5),
+                albumentations.Transpose(p=0.5),
                 albumentations.Flip(p=0.5),
                 albumentations.RandomScale(scale_limit=0.1),
                 #albumentations.OneOf(
@@ -96,7 +97,7 @@ def get_sampler(df, class_weights=None):
         #class_weights = max(label_counts) / label_counts # higher count, lower weight
         #class_weights = class_weights / sum(class_weights)
         class_weights = [1, 1.3, 1, 1.3, 1]
-    print("classes, weights", labels, class_weights)
+    print("weights", class_weights)
     dataset_weights = [class_weights[idx] for idx in df['diagnosis']]
     datasampler = sampler.WeightedRandomSampler(dataset_weights, len(df))
     return datasampler
@@ -106,8 +107,9 @@ def provider(
     fold, total_folds, images_folder, df_path, phase, size, mean, std, class_weights=None, batch_size=8, num_workers=4
 ):
     df = pd.read_csv(df_path)
-    bad_indices = np.load('data/bad_train_indices.npy')
-    dup_indices = np.load('data/dups_with_same_diagnosis.npy') # [3]
+    HOME = os.path.abspath(os.path.dirname(__file__))
+    bad_indices = np.load(os.path.join(HOME, 'data/bad_train_indices.npy'))
+    dup_indices = np.load(os.path.join(HOME, 'data/dups_with_same_diagnosis.npy')) # [3]
     duplicates = df.iloc[dup_indices]
     all_dups = np.array(list(bad_indices) + list(dup_indices))
     df = df.drop(df.index[all_dups]) # remove duplicates and split train/val
@@ -123,7 +125,7 @@ def provider(
 
     datasampler = None
     if phase == "train" and class_weights:
-        datasampler = get_sampler(df)
+        datasampler = get_sampler(df, class_weights=class_weights)
 
     dataloader = DataLoader(
         image_dataset,
@@ -150,9 +152,11 @@ if __name__ == "__main__":
 
     root = os.path.dirname(__file__)  # data folder
     data_folder = 'data'
+    #train_df_name = 'train.csv'
+    train_df_name = 'train_all.csv'
     #data_folder = 'external_data'
     images_folder = os.path.join(root, data_folder, "train_images/")  #
-    df_path = os.path.join(root, data_folder, "train.csv")  #
+    df_path = os.path.join(root, data_folder, train_df_name)  #
 
     dataloader = provider(
         fold, total_folds, images_folder, df_path, phase, size, mean, std, num_workers=num_workers

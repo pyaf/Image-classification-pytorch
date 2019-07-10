@@ -173,6 +173,7 @@ def epoch_log(log, phase, epoch, epoch_loss, meter, start):
     # log_value(phase + " fnr", fnr, epoch)
     # log_value(phase + " tpr", tpr, epoch)
 
+    return qwk
 
 def mkdir(folder):
     if not os.path.exists(folder):

@@ -17,6 +17,9 @@ from dataloader import provider
 from shutil import copyfile
 from models import Model, get_model
 
+import warnings
+warnings.filterwarnings("ignore")
+
 HOME = os.path.abspath(os.path.dirname(__file__))
 now = datetime.now()
 date = "%s-%s" % (now.day, now.month)
@@ -26,19 +29,21 @@ date = "%s-%s" % (now.day, now.month)
 class Trainer(object):
     def __init__(self):
         remark = """
-        total folds 5, training on main data, with val set sanctity
+        with ben grahm's color version, on all data, with all equal class_weights
                 """
         self.fold = 0
         self.total_folds = 5
-        self.class_weights = [1, 1.3, 1, 1.3, 1]
+        self.class_weights = [1, 1.2, 1, 1.2, 1]
         #self.model_name = "resnext101_32x4d"
         #self.model_name = "se_resnet50_v0"
-
         self.model_name = "densenet121"
-        ext_text = "rgb_cw1"
+        ext_text = "bengrahmscolorall"
+        #******
+        date = "10-7"
+        #*********
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
         print(f"model: {self.folder}")
-        self.resume = False
+        self.resume = True
         self.num_workers = 8
         self.batch_size = {"train": 32, "val": 8}
         self.num_classes = 5
@@ -53,6 +58,7 @@ class Trainer(object):
         # std = (0.5, 0.5, 0.5)
         # self.epoch_2_lr = {1: 2, 3: 5, 5: 2, 6:5, 7:2, 9:5} # factor to scale base_lr with
         # self.weight_decay = 5e-4
+        self.best_qwk = 0
         self.best_loss = float("inf")
         self.start_epoch = 0
         self.num_epochs = 1000
@@ -61,9 +67,11 @@ class Trainer(object):
         torch.set_num_threads(12)
         self.device = torch.device("cuda:0" if self.cuda else "cpu")
         data_folder = 'data'
+        #train_df_name = "train.csv"
+        train_df_name = "train_all.csv"
         #data_folder = 'external_data'
         self.images_folder = os.path.join(HOME, data_folder, "train_images")
-        self.df_path = os.path.join(HOME, data_folder, "train.csv")
+        self.df_path = os.path.join(HOME, data_folder, train_df_name)
         self.save_folder = os.path.join(HOME, self.folder)
         self.model_path = os.path.join(self.save_folder, "model.pth")
         self.ckpt_path = os.path.join(self.save_folder, "ckpt.pth")
@@ -132,7 +140,8 @@ class Trainer(object):
                 for k, v in opt_state.items():
                     if torch.is_tensor(v):
                         opt_state[k] = v.to(self.device)
-        self.best_loss = state["best_loss"]
+        #self.best_loss = state["best_loss"]
+        self.best_qwk = state["best_qwk"]
         self.start_epoch = state["epoch"] + 1
 
     def initialize_net(self):
@@ -175,9 +184,9 @@ class Trainer(object):
         if phase == "val":
             best_threshold = meter.get_best_threshold()
         epoch_loss = running_loss / total_images
-        epoch_log(self.log, phase, epoch, epoch_loss, meter, start)
+        qwk = epoch_log(self.log, phase, epoch, epoch_loss, meter, start)
         torch.cuda.empty_cache()
-        return epoch_loss, best_threshold
+        return epoch_loss, qwk, best_threshold
 
     def train(self):
         t0 = time.time()
@@ -194,19 +203,21 @@ class Trainer(object):
             self.iterate(epoch, "train")
             state = {
                 "epoch": epoch,
-                "best_loss": self.best_loss,
+                #"best_loss": self.best_loss,
+                "best_qwk": self.best_qwk,
                 "state_dict": self.net.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
             }
-            val_loss, best_threshold = self.iterate(epoch, "val")
+            val_loss, val_qwk, best_threshold = self.iterate(epoch, "val")
             state["best_threshold"] = best_threshold
             torch.save(state, self.ckpt_path) # [2]
             self.scheduler.step(val_loss)
-            if val_loss < self.best_loss:
+            #if val_loss < self.best_loss:
+            if val_qwk > self.best_qwk:
                 self.log("******** New optimal found, saving state ********")
-                state["best_loss"] = self.best_loss = val_loss
+                #state["best_loss"] = self.best_loss = val_loss
+                state["best_qwk"] = self.best_qwk = val_qwk
                 torch.save(state, self.model_path)
-            # if epoch and epoch % 2 == 0:
             copyfile(
                 self.ckpt_path, os.path.join(self.save_folder, "ckpt%d.pth" % epoch)
             )

@@ -18,7 +18,7 @@ from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.metrics import cohen_kappa_score
 from models import Model, get_model
 from utils import get_preds
-
+from image_utils import *
 
 def get_parser():
     parser = ArgumentParser()
@@ -54,6 +54,52 @@ def get_parser():
     return parser
 
 
+def get_best_threshold(model, fold, total_folds):
+    '''
+    root: the folder with the images
+    model: the model to use for prediction
+    fold: which are we talking abt? gotta get the val set
+    total_folds: required for val set
+    train_df: training dataframe
+    '''
+
+    train_df_path = 'data/train.csv'
+    train_df = pd.read_csv(train_df_path)
+    bad_indices = np.load('data/bad_train_indices.npy')
+    df = train_df.drop(train_df.index[bad_indices]) # remove duplicates
+    kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
+    train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
+    train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
+    # a dataloader for val set
+    root = 'data/train_images'
+    valset = DataLoader(
+        TestDataset(root, val_df, size, mean, std, False),
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True if use_cuda else False,
+    )
+    print("Getting predictions on validation set for fold %d..." % fold)
+    val_pred = get_predictions(model, valset, False)
+
+    def compute_score_inv(threshold):
+        #pdb.set_trace()
+        y1 = val_pred > threshold
+        y1 = get_preds(y1, num_classes)
+        y2 = val_df.diagnosis.values
+        score = cohen_kappa_score(y1, y2, weights='quadratic')
+        return 1 - score
+
+    print("Getting the best threshold..")
+    simplex = scipy.optimize.minimize(
+        compute_score_inv, 0.5, method='nelder-mead'
+    )
+
+    best_threshold = simplex['x'][0]
+    print('best threshold: %s' % best_threshold)
+    return best_threshold
+
+
 class TestDataset(data.Dataset):
     def __init__(self, root, df, size, mean, std, tta=True):
         self.root = root
@@ -87,20 +133,11 @@ class TestDataset(data.Dataset):
         )
 
     def __getitem__(self, idx):
-        IMG_SIZE = self.size
         fname = self.fnames[idx]
-        img_path = os.path.join(self.root, fname + ".png")
-        image = cv2.imread(img_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # ****************************
-        #image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        image = cv2.resize(image, (IMG_SIZE, IMG_SIZE))
-        #image = cv2.addWeighted(
-        #   image, 4, cv2.GaussianBlur(image, (0, 0), IMG_SIZE / 10), -4, 128
-        #)  # Ben Graham's preprocessing method [1]
-
-        ## (IMG_SIZE, IMG_SIZE) -> (IMG_SIZE, IMG_SIZE, 3)
-        #image = image.reshape(IMG_SIZE, IMG_SIZE, 1)
-        #image = np.repeat(image, 3, axis=-1)
+        path = os.path.join(self.root, fname + ".png")
+        #image = load_image(path, size)
+        #image = load_ben_gray(path)
+        image = load_ben_color(path, size=self.size, crop=False)
 
         images = [
             self.last_transform(image=self.transform(image=image)["image"])["image"]
@@ -139,51 +176,6 @@ def get_predictions(model, testset, use_tta):
         # if i==10:break
 
     return np.array(predictions)
-
-
-def get_best_threshold(model, fold, total_folds):
-    '''
-    root: the folder with the images
-    model: the model to use for prediction
-    fold: which are we talking abt? gotta get the val set
-    total_folds: required for val set
-    train_df: training dataframe
-    '''
-
-    train_df_path = 'data/train.csv'
-    bad_indices = np.load('data/bad_train_indices.npy')
-    df = train_df.drop(train_df.index[bad_indices]) # remove duplicates
-    kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
-    train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
-    train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
-    # a dataloader for val set
-    root = 'data/train_images'
-    valset = DataLoader(
-        TestDataset(root, val_df, size, mean, std, False),
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True if use_cuda else False,
-    )
-    print("Getting predictions on validation set for fold %d..." % fold)
-    val_pred = get_predictions(model, valset, False)
-
-    def compute_score_inv(threshold):
-        #pdb.set_trace()
-        y1 = val_pred > threshold
-        y1 = get_preds(y1, num_classes)
-        y2 = val_df.diagnosis.values
-        score = cohen_kappa_score(y1, y2, weights='quadratic')
-        return 1 - score
-
-    print("Getting the best threshold..")
-    simplex = scipy.optimize.minimize(
-        compute_score_inv, 0.5, method='nelder-mead'
-    )
-
-    best_threshold = simplex['x'][0]
-    print('best threshold: %s' % best_threshold)
-    return best_threshold
 
 
 def get_model_name_fold(ckpt_path):
