@@ -90,9 +90,13 @@ didn't help!
 
 # Models on training:
 
+### 9 Jul
+
 9 Jul: weights/9-7_densenet121_fold0_rbg to be trained on npy_rgb with class weights [1, 1.5, 1, 1.5, 1.5] with best threshold on val set being saved with each checkpoint. *The submission.py* needs to be modified accordingly. Gotta remove the best_thresshold function from there.
 
 * weights/9-7_densenet121_fold0_rbg_ext: same as above, trained on npy_rgb of external dataset, the one from previouss competition, was performing poorly on original train set, total_folds=10
+
+### 10 Jul
 
 * 10 Jul: weights/10-7_densenet121_fold0_rgb: trained with val set sanctity on original dataset, total_folds = 5: LB: 0.66
 * 10 Jul: weights/10-7_densenet121_fold0_rgb_cw1: with classweights 1, 1.3, 1, 1.3, 1, as the previous model is getting biased towards class 4,
@@ -123,6 +127,7 @@ new files created, with all data : external + competition one  check the files s
 
 * 10 Jul: weights/10-7_densenet121_fold0_bengrahmscolorall: training on all data npy (data/train_images/npy_bengrahm_color and data/train_all.csv) with equal class weights with Transpose, Flip, and Random Scale: LB: 0.63
 
+### 11 Jul
 
 * 11 Jul: weights/11-7_resnext101_32xd_fold0_bengrahmscolorall: same as above with resnext101 model, batch size reduced to 16, class weights [1, 1.2, 1, 1.2, 1.2]
 
@@ -173,10 +178,24 @@ Let me generate test predictions for threshold 0.5
 
 The public test set has a totally different distribution as compared to train set, and then we have private test which is ~ 10 times the public test set. So, the importance of validation set truely representing the test set is more than ever as we are using thresholds optimised at validation set.
 
-* few questions *
+>> few questions *
 1. What about pre-training the model on previous year's dataset and then training on the current one
 2. using cropped version of the dataset
 
+* weights/12-7_resnext101_32x4d_v0_fold0_bgcold: follows points 1. of above
+
+I've added a new version of resnext101: resnext101_32x4d_v1, replacing the AdaptiveAvgPool2d with AdaptiveConcatPool2d which concats the output of AdaptiveAvgPool2d and AdaptiveMaxPool2d, apparently it performs better: check [here](https://docs.fast.ai/layers.html#AdaptiveConcatPool2d).
+
+* weights/12-7_resnext101_32x4d_v1_fold0_bgcold: same as v0, only diff: AdaptiveConcatPool2d used instead of AdaptiveAvgPool2d, with Lin(4096), Lin(2048) Lin(5)
+
+
+after 4 hours of experimentations: it turns out that it's kinda same.
+
+LISTEN: YOUR BIAS TOWARDS PYTORCH IS NOT GOOD. Keras has evolved, fastai is great. Be open to use anything at hand.
+
+So, there's this keras' starter kernel with simple imread, resize preprocessing, vertflip, horzflip, zoom aug, 0.15 val set, densenet121 base model with adaptiveavgpool, lin(5) model, with multi label, binary cross entropy, saving model based on val set kappa score and boom it scores 0.73 on LB with 0.5 threshold o_O. his model is same as my densenet121 only with dropout(0.5) I had 0.3, but heck, okay so he is using 0.5 as threshold for val set kappa calculation during training.
+
+So, what I'm gonna do now is reproduce this result in pytorch, and see what the heck am I doing wrong.
 
 
 # TODO:

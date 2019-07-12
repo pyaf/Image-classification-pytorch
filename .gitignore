@@ -1,4 +1,6 @@
 *.pyc
+*.h5
+*.pkl
 weights/*
 data/*
 notebooks/PATH

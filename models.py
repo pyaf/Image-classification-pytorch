@@ -9,6 +9,20 @@ class Flatten(nn.Module):
         return x.view(x.size()[0], -1)
 
 
+class AdaptiveConcatPool2d(nn.Module):
+    "Layer that concats `AdaptiveAvgPool2d` and `AdaptiveMaxPool2d`."
+    def __init__(self, sz):
+        "Output will be 2*sz or 2 if sz is None"
+        super(AdaptiveConcatPool2d, self).__init__()
+        self.output_size = sz or 1
+        self.ap = nn.AdaptiveAvgPool2d(self.output_size)
+        self.mp = nn.AdaptiveMaxPool2d(self.output_size)
+
+    def forward(self, x):
+        #pdb.set_trace()
+        return torch.cat([self.mp(x), self.ap(x)], 1)
+
+
 class Model(nn.Module):
     def __init__(self, model_name, out_features, pretrained="imagenet"):
         super(Model, self).__init__()
@@ -73,6 +87,24 @@ class Model(nn.Module):
                 nn.Dropout(p=0.5),
                 nn.Linear(in_features=2048, out_features=out_features, bias=True),
              )
+
+        elif model_name == "resnext101_32x4d_v1":
+            model_name = "resnext101_32x4d"
+            self.model = pretrainedmodels.__dict__[model_name](
+                num_classes=1000, pretrained=pretrained
+            )
+            self.classifier = nn.Sequential(
+                AdaptiveConcatPool2d(1),
+                Flatten(),
+                nn.BatchNorm1d(4096),
+                nn.Dropout(p=0.25),
+                nn.Linear(in_features=4096, out_features=2048, bias=True),
+                nn.ReLU(),
+                nn.BatchNorm1d(2048),
+                nn.Dropout(p=0.5),
+                nn.Linear(in_features=2048, out_features=out_features, bias=True),
+             )
+
 
     def forward(self, x):
         #pdb.set_trace()

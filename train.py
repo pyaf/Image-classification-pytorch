@@ -32,7 +32,7 @@ class Trainer(object):
         self.fold = 0
         self.total_folds = 5
         self.class_weights = None #[1, 1, 1, 1, 1]
-        self.model_name = "resnext101_32x4d_v0"
+        self.model_name = "resnext101_32x4d_v1"
         #self.model_name = "se_resnet50_v0"
         #self.model_name = "densenet121"
         ext_text = "bgcold"
