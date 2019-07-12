@@ -1,0 +1,2 @@
+
+Resnext101_32xd model with ben grahm's color version, on comp. data, no class weights, with only flip augmentation nothing else,

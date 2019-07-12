@@ -31,8 +31,8 @@ class Trainer(object):
         self.fold = 0
         self.total_folds = 5
         self.class_weights = [1, 1.3, 1, 1.3, 1]
-        #self.model_name = "resnext101_32x4d"
-        #self.model_name = "se_resnet50_v0"
+        # self.model_name = "resnext101_32x4d"
+        # self.model_name = "se_resnet50_v0"
         self.model_name = "densenet121"
         ext_text = "bengrahmscolortest"
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
@@ -59,8 +59,8 @@ class Trainer(object):
         self.cuda = torch.cuda.is_available()
         torch.set_num_threads(12)
         self.device = torch.device("cuda:0" if self.cuda else "cpu")
-        data_folder = 'data'
-        #data_folder = 'external_data'
+        data_folder = "data"
+        # data_folder = 'external_data'
         self.images_folder = os.path.join(HOME, data_folder, "train_images")
         self.df_path = os.path.join(HOME, data_folder, "train.csv")
         self.save_folder = os.path.join(HOME, self.folder)
@@ -71,8 +71,8 @@ class Trainer(object):
         )
         torch.set_default_tensor_type(self.tensor_type)
         self.net = Model(self.model_name, self.num_classes)
-        #self.criterion = torch.nn.CrossEntropyLoss()
-        self.criterion = torch.nn.BCELoss() # requires sigmoid pred inputs
+        # self.criterion = torch.nn.CrossEntropyLoss()
+        self.criterion = torch.nn.BCELoss()  # requires sigmoid pred inputs
         # self.optimizer = optim.SGD(
         #            self.net.parameters(),
         #            lr=self.top_lr,
@@ -112,7 +112,7 @@ class Trainer(object):
                 self.size,
                 self.mean,
                 self.std,
-                class_weights = self.class_weights,
+                class_weights=self.class_weights,
                 batch_size=self.batch_size[phase],
                 num_workers=self.num_workers,
             )
@@ -139,7 +139,7 @@ class Trainer(object):
 
     def forward(self, images, targets):
         images = images.to(self.device)
-        #targets = targets.type(torch.LongTensor).to(self.device) # [1]
+        # targets = targets.type(torch.LongTensor).to(self.device) # [1]
         targets = targets.type(torch.FloatTensor).to(self.device)
         outputs = self.net(images)
         outputs = torch.sigmoid(outputs)
@@ -180,7 +180,7 @@ class Trainer(object):
         for epoch in range(self.start_epoch, self.num_epochs):
             t_epoch_start = time.time()
             ckpt_path = os.path.join(self.save_folder, "ckpt%d.pth" % epoch)
-            print('Loading ckpt: %s' % ckpt_path)
+            print("Loading ckpt: %s" % ckpt_path)
             state = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
             self.net.load_state_dict(state["state_dict"])
             val_loss, best_threshold = self.iterate(epoch, "val")
@@ -192,10 +192,10 @@ if __name__ == "__main__":
     model_trainer.validate()
 
 
-'''Footnotes
+"""Footnotes
 [1]: Crossentropy loss functions expects targets to be in labels (not one-hot) and of type
 LongTensor, BCELoss expects targets to be FloatTensor
 
 [2]: the ckpt.pth is saved after each train and val phase, val phase is neccessary becausue we want the best_threshold to be computed on the val set., Don't worry, the probability of your system going down just after a crucial training phase is low, just wait a few minutes for the val phase :p
 
-'''
+"""

@@ -47,7 +47,6 @@ class Model(nn.Module):
                 nn.Linear(in_features=1024, out_features=out_features, bias=True),
             )
 
-
         elif model_name == "resnext101_32x4d":
             self.model = pretrainedmodels.__dict__[model_name](
                 num_classes=1000, pretrained=pretrained
@@ -58,8 +57,25 @@ class Model(nn.Module):
                 nn.Dropout(0.5),
                 nn.Linear(in_features=2048, out_features=out_features, bias=True),
             )
+        elif model_name == "resnext101_32x4d_v0":
+            model_name = "resnext101_32x4d"
+            self.model = pretrainedmodels.__dict__[model_name](
+                num_classes=1000, pretrained=pretrained
+            )
+            self.classifier = nn.Sequential(
+                nn.AdaptiveAvgPool2d(1),
+                Flatten(),
+                nn.BatchNorm1d(2048),
+                nn.Dropout(p=0.25),
+                nn.Linear(in_features=2048, out_features=2048, bias=True),
+                nn.ReLU(),
+                nn.BatchNorm1d(2048),
+                nn.Dropout(p=0.5),
+                nn.Linear(in_features=2048, out_features=out_features, bias=True),
+             )
 
     def forward(self, x):
+        #pdb.set_trace()
         x = self.model.features(x)  # only backbone features
         x = self.classifier(x)
         return x
@@ -77,7 +93,7 @@ if __name__ == "__main__":
     model = Model(model_name, classes, "imagenet")
     image = torch.Tensor(1, 3, 224, 224)
     # image = torch.Tensor(1, 3, 112, 112)
-    #image = torch.Tensor(1, 3, 96, 96)
+    # image = torch.Tensor(1, 3, 96, 96)
 
     output = model(image)
     print(output.shape)

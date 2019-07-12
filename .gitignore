@@ -1,6 +1,7 @@
 *.pyc
 weights/*
 data/*
+notebooks/PATH
 external_data/*
 original_data/*
 __pycache__/*

@@ -34,14 +34,14 @@ class ImageDataset(Dataset):
         self.fnames = self.df["id_code"].values
         self.labels = self.df["diagnosis"].values.astype("int64")
         self.num_classes = len(np.unique(self.labels))
-        self.labels = to_multi_label(self.labels, self.num_classes) # [1]
+        self.labels = to_multi_label(self.labels, self.num_classes)  # [1]
         # self.labels = np.eye(self.num_classes)[self.labels]
         self.transform = get_transforms(phase, size, mean, std)
 
     def __getitem__(self, idx):
         fname = self.fnames[idx]
         label = self.labels[idx]
-        path = os.path.join(self.images_folder, 'npy_bengrahm_color', fname + '.npy')
+        path = os.path.join(self.images_folder, "npy_bengrahm_color", fname + ".npy")
         image = np.load(path)
         image = self.transform(image=image)["image"]
         return fname, image, label
@@ -50,75 +50,94 @@ class ImageDataset(Dataset):
         # return 100
         return len(self.df)
 
-
 def get_transforms(phase, size, mean, std):
     list_transforms = [
         # albumentations.Resize(size, size) # now doing this in __getitem__()
-        albumentations.Normalize(mean=mean, std=std, p=1),
     ]
     if phase == "train":
         list_transforms.extend(
             [
-                #albumentations.Rotate(limit=360, p=0.5),
-                albumentations.Transpose(p=0.5),
+                # albumentations.Rotate(limit=360, p=0.5),
+                #albumentations.Transpose(p=0.5),
                 albumentations.Flip(p=0.5),
-                albumentations.RandomScale(scale_limit=0.1),
+                #albumentations.RandomScale(scale_limit=0.1),
                 #albumentations.OneOf(
-                #    [
-                #        albumentations.CLAHE(clip_limit=2),
-                #        albumentations.IAASharpen(),
-                #        albumentations.IAAEmboss(),
-                #        albumentations.RandomBrightnessContrast(),
-                #        albumentations.JpegCompression(),
-                #        albumentations.Blur(),
-                #        albumentations.GaussNoise(),
-                #    ],
-                #    p=0.5,
+                #   [
+                #       albumentations.CLAHE(clip_limit=2),
+                #       albumentations.IAASharpen(),
+                #       albumentations.IAAEmboss(),
+                #       albumentations.RandomBrightnessContrast(),
+                #       albumentations.JpegCompression(),
+                #       albumentations.Blur(),
+                #       albumentations.GaussNoise(),
+                #   ],
+                #   p=0.5,
                 #),
                 #albumentations.HueSaturationValue(p=0.5),
                 #albumentations.ShiftScaleRotate(
-                #    shift_limit=0.15, scale_limit=0.15, rotate_limit=45, p=0.5
+                #   shift_limit=0.15, scale_limit=0.15, rotate_limit=45, p=0.5
                 #),
             ]
         )
 
     list_transforms.extend(
         [
-            albumentations.Resize(size, size), # because RandomScale is applied
+
+            albumentations.Normalize(mean=mean, std=std, p=1),
+            albumentations.Resize(size, size),  # because RandomScale is applied
             AT.ToTensor(),
         ]
     )
     return albumentations.Compose(list_transforms)
 
-
 def get_sampler(df, class_weights=None):
     if class_weights is None:
-        labels, label_counts = np.unique(df['diagnosis'].values, return_counts=True) # [2]
-        #class_weights = max(label_counts) / label_counts # higher count, lower weight
-        #class_weights = class_weights / sum(class_weights)
-        class_weights = [1, 1.3, 1, 1.3, 1]
+        labels, label_counts = np.unique(
+            df["diagnosis"].values, return_counts=True
+        )  # [2]
+        # class_weights = max(label_counts) / label_counts # higher count, lower weight
+        # class_weights = class_weights / sum(class_weights)
+        class_weights = [1, 1, 1, 1.3, 1]
     print("weights", class_weights)
-    dataset_weights = [class_weights[idx] for idx in df['diagnosis']]
+    dataset_weights = [class_weights[idx] for idx in df["diagnosis"]]
     datasampler = sampler.WeightedRandomSampler(dataset_weights, len(df))
     return datasampler
 
 
 def provider(
-    fold, total_folds, images_folder, df_path, phase, size, mean, std, class_weights=None, batch_size=8, num_workers=4
+    fold,
+    total_folds,
+    images_folder,
+    df_path,
+    phase,
+    size,
+    mean,
+    std,
+    class_weights=None,
+    batch_size=8,
+    num_workers=4,
+    num_samples=4000,
 ):
+    print('df_path', df_path)
     df = pd.read_csv(df_path)
     HOME = os.path.abspath(os.path.dirname(__file__))
-    bad_indices = np.load(os.path.join(HOME, 'data/bad_train_indices.npy'))
-    dup_indices = np.load(os.path.join(HOME, 'data/dups_with_same_diagnosis.npy')) # [3]
+    bad_indices = np.load(os.path.join(HOME, "data/bad_train_indices.npy"))
+    dup_indices = np.load(
+        os.path.join(HOME, "data/dups_with_same_diagnosis.npy")
+    )  # [3]
     duplicates = df.iloc[dup_indices]
     all_dups = np.array(list(bad_indices) + list(dup_indices))
-    df = df.drop(df.index[all_dups]) # remove duplicates and split train/val
+    df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
+
+    print('num_samples:', num_samples)
+    if num_samples:
+        df = df.iloc[:num_samples]
 
     kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)  # 20 splits
     train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
     train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
-    train_df = train_df.append(duplicates, ignore_index=True) # add dups, not bad ones
-    #pdb.set_trace()
+    train_df = train_df.append(duplicates, ignore_index=True)  # add dups, not bad ones
+    # pdb.set_trace()
     df = train_df if phase == "train" else val_df
 
     image_dataset = ImageDataset(df, images_folder, size, mean, std, phase)
@@ -126,15 +145,15 @@ def provider(
     datasampler = None
     if phase == "train" and class_weights:
         datasampler = get_sampler(df, class_weights=class_weights)
-
+    print('datasampler:', datasampler)
     dataloader = DataLoader(
         image_dataset,
         batch_size=batch_size,
         num_workers=num_workers,
         pin_memory=True,
         shuffle=True if datasampler is None else False,
-        sampler=datasampler
-    ) # shuffle and sampler are mutually exclusive args
+        sampler=datasampler,
+    )  # shuffle and sampler are mutually exclusive args
     return dataloader
 
 
@@ -151,15 +170,29 @@ if __name__ == "__main__":
     size = 224
 
     root = os.path.dirname(__file__)  # data folder
-    data_folder = 'data'
-    #train_df_name = 'train.csv'
-    train_df_name = 'train_all.csv'
-    #data_folder = 'external_data'
+    data_folder = "data"
+    # train_df_name = 'train.csv'
+    train_df_name = "train_all.csv"
+    num_samples = 5000
+    class_weights = [1, 1, 1, 1, 1]
+    batch_size = 1
+    # data_folder = 'external_data'
     images_folder = os.path.join(root, data_folder, "train_images/")  #
     df_path = os.path.join(root, data_folder, train_df_name)  #
 
     dataloader = provider(
-        fold, total_folds, images_folder, df_path, phase, size, mean, std, num_workers=num_workers
+        fold,
+        total_folds,
+        images_folder,
+        df_path,
+        phase,
+        size,
+        mean,
+        std,
+        class_weights=class_weights,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        num_samples=num_samples,
     )
     total_labels = []
     total_len = len(dataloader)
@@ -167,7 +200,7 @@ if __name__ == "__main__":
         fnames, images, labels = batch
         print("%d/%d" % (idx, total_len), images.shape, labels.shape, labels)
         total_labels.extend(labels.tolist())
-        #pdb.set_trace()
+        pdb.set_trace()
     print(np.unique(total_labels, return_counts=True))
 
 

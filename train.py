@@ -11,7 +11,7 @@ from collections import defaultdict
 # from ssd import build_ssd
 import torch.nn as nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from tensorboard_logger import configure, log_value
+from tensorboard_logger import Logger
 from utils import *
 from dataloader import provider
 from shutil import copyfile
@@ -28,24 +28,24 @@ date = "%s-%s" % (now.day, now.month)
 
 class Trainer(object):
     def __init__(self):
-        remark = """
-        with ben grahm's color version, on all data, with all equal class_weights
-                """
+        remark = open("remark.txt", "r").read()
         self.fold = 0
         self.total_folds = 5
-        self.class_weights = [1, 1.2, 1, 1.2, 1]
-        #self.model_name = "resnext101_32x4d"
+        self.class_weights = None #[1, 1, 1, 1, 1]
+        self.model_name = "resnext101_32x4d_v0"
         #self.model_name = "se_resnet50_v0"
-        self.model_name = "densenet121"
-        ext_text = "bengrahmscolorall"
-        #******
-        date = "10-7"
-        #*********
+        #self.model_name = "densenet121"
+        ext_text = "bgcold"
+        self.num_samples = None #5000
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
         print(f"model: {self.folder}")
-        self.resume = True
+        self.resume = False
+        #train_df_name = "train.csv"
+        #train_df_name = "train_all.csv"
+        train_df_name = "train_old.csv"
+        #data_folder = 'external_data'
         self.num_workers = 8
-        self.batch_size = {"train": 32, "val": 8}
+        self.batch_size = {"train": 16, "val": 8}
         self.num_classes = 5
         self.top_lr = 1e-4
         self.base_lr = self.top_lr * 0.001
@@ -56,7 +56,7 @@ class Trainer(object):
         self.std = (0.229, 0.224, 0.225)
         # mean = (0.5, 0.5, 0.5)
         # std = (0.5, 0.5, 0.5)
-        # self.epoch_2_lr = {1: 2, 3: 5, 5: 2, 6:5, 7:2, 9:5} # factor to scale base_lr with
+        # self.epoch_2_lr = {1: 2, 3: 5, 5: 2, 6:5, 7:2, 9:5} # factor to scale base_lr
         # self.weight_decay = 5e-4
         self.best_qwk = 0
         self.best_loss = float("inf")
@@ -67,9 +67,6 @@ class Trainer(object):
         torch.set_num_threads(12)
         self.device = torch.device("cuda:0" if self.cuda else "cpu")
         data_folder = 'data'
-        #train_df_name = "train.csv"
-        train_df_name = "train_all.csv"
-        #data_folder = 'external_data'
         self.images_folder = os.path.join(HOME, data_folder, "train_images")
         self.df_path = os.path.join(HOME, data_folder, train_df_name)
         self.save_folder = os.path.join(HOME, self.folder)
@@ -108,9 +105,11 @@ class Trainer(object):
         self.net = self.net.to(self.device)
         if self.cuda:
             cudnn.benchmark = True
-        configure(os.path.join(self.save_folder, "logs"), flush_secs=5)
+        self.tb = {
+                x: Logger(os.path.join(self.save_folder, "logs", x))
+                for x in ["train", "val"]
+        } # tensorboard logger, see [3]
         mkdir(self.save_folder)
-
         self.dataloaders = {
             phase: provider(
                 self.fold,
@@ -124,6 +123,7 @@ class Trainer(object):
                 class_weights = self.class_weights,
                 batch_size=self.batch_size[phase],
                 num_workers=self.num_workers,
+                num_samples=self.num_samples
             )
             for phase in ["train", "val"]
         }
@@ -154,7 +154,7 @@ class Trainer(object):
         outputs = self.net(images)
         outputs = torch.sigmoid(outputs)
         loss = self.criterion(outputs, targets)
-        return loss, outputs
+        return loss, outputs.detach()
 
     def iterate(self, epoch, phase):
         meter = Meter(phase, epoch, self.save_folder)
@@ -175,16 +175,15 @@ class Trainer(object):
                 self.optimizer.step()
             running_loss += loss.item()
             # pdb.set_trace()
-            outputs = outputs.detach()
-            meter.update(targets.cpu(), outputs.cpu())
-            if iteration % 50 == 0:
+            meter.update(targets, outputs)
+            if iteration % 100 == 0:
                 iter_log(self.log, phase, epoch, iteration, total_iters, loss, start)
                 # break
         best_threshold = 0.5
         if phase == "val":
             best_threshold = meter.get_best_threshold()
         epoch_loss = running_loss / total_images
-        qwk = epoch_log(self.log, phase, epoch, epoch_loss, meter, start)
+        qwk = epoch_log(self.log, self.tb, phase, epoch, epoch_loss, meter, start)
         torch.cuda.empty_cache()
         return epoch_loss, qwk, best_threshold
 
@@ -237,4 +236,5 @@ LongTensor, BCELoss expects targets to be FloatTensor
 
 [2]: the ckpt.pth is saved after each train and val phase, val phase is neccessary becausue we want the best_threshold to be computed on the val set., Don't worry, the probability of your system going down just after a crucial training phase is low, just wait a few minutes for the val phase :p
 
+[3]: one tensorboard logger for train and val each, in same folder, so that we can see plots on the same graph
 '''

@@ -36,7 +36,7 @@ def logger_init(save_folder):
 
 
 def to_multi_label(target, classes):
-    '''[0, 0, 1, 0] to [1, 1, 1, 0]'''
+    """[0, 0, 1, 0] to [1, 1, 1, 0]"""
     multi_label = np.zeros((len(target), classes))
     for i in range(len(target)):
         j = target[i] + 1
@@ -45,17 +45,17 @@ def to_multi_label(target, classes):
 
 
 def get_preds(arr, num_cls):
-    ''' takes in thresholded predictions (num_samples, num_cls) and returns (num_samples,)
-    [3], arr needs to be a numpy array, NOT torch tensor'''
+    """ takes in thresholded predictions (num_samples, num_cls) and returns (num_samples,)
+    [3], arr needs to be a numpy array, NOT torch tensor"""
     mask = arr == 0
-    #pdb.set_trace()
-    return np.clip(np.where(mask.any(1), mask.argmax(1), num_cls) - 1, 0, num_cls-1)
+    # pdb.set_trace()
+    return np.clip(np.where(mask.any(1), mask.argmax(1), num_cls) - 1, 0, num_cls - 1)
 
 
 def compute_score_inv(threshold, predictions, targets, num_classes):
     predictions = predictions > threshold
     predictions = get_preds(predictions, num_classes)
-    score = cohen_kappa_score(predictions, targets, weights='quadratic')
+    score = cohen_kappa_score(predictions, targets, weights="quadratic")
     return 1 - score
 
 
@@ -66,37 +66,38 @@ class Meter:
         self.phase = phase
         self.epoch = epoch
         self.save_folder = os.path.join(save_folder, "logs")
-        self.num_classes = 5 # hard coded, yeah, I know
+        self.num_classes = 5  # hard coded, yeah, I know
         self.best_threshold = 0.5
 
     def update(self, targets, outputs):
+        '''targets, outputs are detached CUDA tensors'''
         # get multi-label to single label
         targets = torch.sum(targets, 1) - 1
         targets = targets.type(torch.LongTensor)
-        #outputs = torch.sum((outputs > 0.5), 1) - 1
+        # outputs = torch.sum((outputs > 0.5), 1) - 1
 
-        #pdb.set_trace()
+        # pdb.set_trace()
         self.targets.extend(targets.tolist())
         self.predictions.extend(outputs.tolist())
-        #self.predictions.extend(torch.argmax(outputs, dim=1).tolist()) #[2]
+        # self.predictions.extend(torch.argmax(outputs, dim=1).tolist()) #[2]
 
     def get_best_threshold(self):
-        '''Used in the val phase of iteration, see [4]'''
+        """Used in the val phase of iteration, see [4]"""
         self.predictions = np.array(self.predictions)
         self.targets = np.array(self.targets)
         simplex = scipy.optimize.minimize(
             compute_score_inv,
             0.5,
             args=(self.predictions, self.targets, self.num_classes),
-            method='nelder-mead'
+            method="nelder-mead",
         )
-        self.best_threshold = simplex['x'][0]
+        self.best_threshold = simplex["x"][0]
         print("Best threshold: %s" % self.best_threshold)
         return self.best_threshold
 
     def get_cm(self):
         threshold = self.best_threshold
-        self.predictions = np.array(self.predictions) > threshold # [5]
+        self.predictions = np.array(self.predictions) > threshold  # [5]
         self.predictions = get_preds(self.predictions, self.num_classes)
         cm = ConfusionMatrix(self.targets, self.predictions)
         qwk = cohen_kappa_score(self.targets, self.predictions, weights="quadratic")
@@ -149,20 +150,25 @@ def iter_log(log, phase, epoch, iteration, epoch_size, loss, start):
     )
 
 
-def epoch_log(log, phase, epoch, epoch_loss, meter, start):
+def epoch_log(log, tb, phase, epoch, epoch_loss, meter, start):
     diff = time.time() - start
     cm, qwk = meter.get_cm()
     acc = cm.overall_stat["Overall ACC"]
-    log("<===%s epoch: %d finished===>" % (phase, epoch))
+    print()
     log(
-        "%s %d |  loss: %0.4f | qwk: %0.4f | acc: %0.4f"
+        "%s %d |  loss: %0.4f | qwk: %0.4f | acc: %0.4f \n"
         % (phase, epoch, epoch_loss, qwk, acc)
     )
     log(cm.print_normalized_matrix())
     log("Time taken for %s phase: %02d:%02d \n", phase, diff // 60, diff % 60)
-    log_value(phase + " loss", epoch_loss, epoch)
-    log_value(phase + " acc", acc, epoch)
-    log_value(phase + " qwk", qwk, epoch)
+
+    # tensorboard
+    logger = tb[phase]
+    logger.log_value("loss", epoch_loss, epoch)
+    logger.log_value("acc", acc, epoch)
+    logger.log_value("qwk", qwk, epoch)
+
+    # pycm confusion matrix and metrics
     obj_path = os.path.join(meter.save_folder, f"cm{phase}_{epoch}")
     cm.save_obj(obj_path, save_stat=True, save_vector=False)
 
@@ -175,6 +181,7 @@ def epoch_log(log, phase, epoch, epoch_loss, meter, start):
 
     return qwk
 
+
 def mkdir(folder):
     if not os.path.exists(folder):
         os.mkdir(folder)
@@ -183,6 +190,7 @@ def mkdir(folder):
 def save_hyperparameters(trainer, remark):
     hp_file = os.path.join(trainer.save_folder, "parameters.txt")
     time_now = datetime.now()
+    augmentations = trainer.dataloaders['train'].dataset.transform.transforms
     # pdb.set_trace()
     with open(hp_file, "a") as f:
         f.write(f"Time: {time_now}\n")
@@ -192,6 +200,7 @@ def save_hyperparameters(trainer, remark):
         f.write(f"folder: {trainer.folder}\n")
         f.write(f"fold: {trainer.fold}\n")
         f.write(f"total_folds: {trainer.total_folds}\n")
+        f.write(f"num_samples: {trainer.num_samples}\n")
         f.write(f"sampling class weights: {trainer.class_weights}\n")
         f.write(f"size: {trainer.size}\n")
         f.write(f"top_lr: {trainer.top_lr}\n")
@@ -203,6 +212,7 @@ def save_hyperparameters(trainer, remark):
         f.write(f"std: {trainer.std}\n")
         f.write(f"start_epoch: {trainer.start_epoch}\n")
         f.write(f"batchsize: {trainer.batch_size}\n")
+        f.write(f"augmentations: {augmentations}\n")
         f.write(f"remark: {remark}\n")
 
 

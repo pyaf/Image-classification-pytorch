@@ -30,14 +30,14 @@ with only last_linear layer modified, use get_model function with std, mean of i
 
 # ADPOS diabetic retina
 
-Observations:
+# Observations:
 
 1. I used 96x96 image size with Resnet101 on 5Jul model, results were not good. Gotta increase the input image size
 2. 143 Images in the training set have duplicates (compared with hashes), out of those 79 have duplicates with different diagnosis label. Test set has 8 duplicates.
 3. If GPU utilization is ~98% you can't help it, it's not the CPU which is the bottelneck here.
 4. As I'm removing only bad ones from dataset, and there are still many duplicates in the there, so it is possible that those duplicates are distributed in train-val set, make sure all those duplicates are either in val set or train set!!!!!!!!!!!!!!!!!!!
 5. So, now after that we are choosing the threshold by get_best_threshold function, the predictions are coming out to be in [1, 1, 1, 0, 0] manner like no 0 and then 1, no gap in between! I don't know how! you won't find any output to be [1, 1, 0, 1, 0] or like something similar.
-
+6. The val qwk is better than train qwk in the qwk plot, because val qwk is threshold optimized, and train qwk uses 0.5
 
 # NOTES:
 
@@ -79,7 +79,13 @@ didn't help!
 * data/train_images/npy_bengrahm : files images, preprocesses according to ben grahm's preprocessing technique, read, bgr2gray, resize, addweighted, reshape, repeat, img size = 224
 * data/train_images/npy_bengrahm_color : all data (internal + external) using bengrahm's color method, no cropping of retina, only 224 resizing
 * data/train_all.csv: contains train df of all data (internal and external), train.csv of external appended to train.csv of internal data, so bad indices still hold correct, I gotta checkout for duplicates in external data also
+* data/train_old.csv: contains id_code and diagnosis of external data only
 *
+
+# Extra remarks shortcut/keywords
+
+* bengrahmscolor: bengramhms color images on orginal data only
+* bgcold: bengrahms color images on old data only
 
 
 # Models on training:
@@ -115,7 +121,62 @@ So looks like the change in the val qwk (a lil bit 0.02) is because of stochasti
 10:43PM: Now on the best model will be saved on the basis of validation qwk score instead of val loss.
 new files created, with all data : external + competition one  check the files section of this log
 
-* 10 Jul: weights/10-7_densenet121_fold0_bengrahmscolorall: training on all data npy (data/train_images/npy_bengrahm_color and data/train_all.csv) with equal class weights with Transpose, Flip, and Random Scale
+* 10 Jul: weights/10-7_densenet121_fold0_bengrahmscolorall: training on all data npy (data/train_images/npy_bengrahm_color and data/train_all.csv) with equal class weights with Transpose, Flip, and Random Scale: LB: 0.63
+
+
+* 11 Jul: weights/11-7_resnext101_32xd_fold0_bengrahmscolorall: same as above with resnext101 model, batch size reduced to 16, class weights [1, 1.2, 1, 1.2, 1.2]
+
+I gotta continue from my best performing model, I've to develop on top of it from now on. I've already wasted a lot of time in random hit and trial experiments
+OKAY, LISTEN:
+
+I will copy the augmentation, preprocessing configuration from the so-far-best-performing-model (0.70 one) and reproduce the results. FIRST. THEN, I'll add 50% new samples from external data and see the results.
+
+So, I'm training a ResNeXt model with top 5k of train_all, (3.5k of train.csv and rest from ext), it's getting biased towards 2 and 3, retraining with class weights [1.5, 1, 1.5, 1, 1]
+wrote test.py to generate test predictions for each ckpt, boi there's hell lot of variation in between the epochs. We gotta use tta for sure. 4 augmentations, batch size 8, takes 1:04 minutes for each predictions. Ok, so after using tta, there's huge variation in predictions even in adjacent checkpoints, is it the external dataset which is the cause?
+tta predictions:
+in order of epoch number, classes, number of predictions per class:
+epoch 18 (array([0, 1, 2, 3, 4]), array([343,  90, 928, 435, 132]))
+epoch 19 (array([0, 1, 2, 3, 4]), array([ 370,   95, 1022,  342,   99]))
+epoch 20 (array([0, 1, 2, 3, 4]), array([310, 105, 899, 431, 183]))
+epoch 21 (array([0, 1, 2, 3, 4]), array([401,  90, 792, 379, 266]))
+epoch 22 (array([0, 1, 2, 3, 4]), array([ 406,  107, 1061,  283,   71]))
+epoch 23 (array([0, 1, 2, 3, 4]), array([ 351,  114, 1103,  262,   98]))
+epoch 24 (array([0, 1, 2, 3, 4]), array([ 347,  106, 1150,  249,   76]))
+epoch 25 (array([0, 1, 2, 3, 4]), array([ 324,   95, 1067,  286,  156]))
+epoch 26 (array([0, 1, 2, 3, 4]), array([ 317,   98, 1021,  332,  160]))
+epoch 27 (array([0, 1, 2, 3, 4]), array([ 400,  115, 1289,  118,    6]))
+epoch 28 (array([0, 1, 2, 3, 4]), array([ 432,  138, 1221,  128,    9]))
+epoch 29 (array([0, 1, 2, 3, 4]), array([ 369,  107, 1036,  291,  125]))
+epoch 30 (array([0, 1, 2, 3, 4]), array([ 416,  126, 1242,  131,   13]))
+epoch 31 (array([0, 1, 2, 3, 4]), array([302, 107, 998, 327, 194]))
+epoch 32 (array([0, 1, 2, 3, 4]), array([ 340,   95, 1066,  297,  130]))
+epoch 33 (array([0, 1, 2, 3, 4]), array([ 345,   90, 1046,  297,  150]))
+
+chose epoch 22 ckpt, with tta got : (array([0, 1, 2, 3, 4]), array([ 405,  106, 1058,  291,   68])) LB: 0.704 (highest so far)
+without tta: (array([0, 1, 2, 3, 4]), array([ 414,  115, 1037,  286,   76])) LB: 0.693
+
+LISTEN: don't fall for oh let me make this BIG change quickly and train a model and see how it performs! it's BS. Understand what you have, get the best out of it, ANALYSE, ask WHY?, make small changes at a time, keep track of your shit.
+
+Okay, so the question is, why is there so much of variation in the predictions on the test set? does that happen in the train set too? let me check it out.
+
+If variation in train set persists: then why there's no variation in losses? or in qwk plots?
+Okay, the variation occurs due to abrupt variation in the best_threshold, now the question is why is best threshold varying this much?
+Let me generate test predictions for threshold 0.5
+
+* KEEP UP WITH THE DISCUSSION FORUM FOR ANY COMPETITION YOU ARE PARTICIPATING *
+
+* One thing is for sure, people are able to achieve above 0.9 val qwk scores (I've also achieved it one or few times.) end up getting good scores on LB and sometimes don't
+
+* weights/11-7_resnext101_32x4d_v0_fold0_bengrahmscolor/ new version of resnext101, with a BN, Lin(2048, 2048), Lin(2048, 4), with no class weights, on comp. data only, with Flip aug only, submitting ckpt26.pth with tta at best_threshold, LB: 0.5
+
+### 12 Jul
+
+The public test set has a totally different distribution as compared to train set, and then we have private test which is ~ 10 times the public test set. So, the importance of validation set truely representing the test set is more than ever as we are using thresholds optimised at validation set.
+
+* few questions *
+1. What about pre-training the model on previous year's dataset and then training on the current one
+2. using cropped version of the dataset
+
 
 
 # TODO:
@@ -132,3 +193,7 @@ new files created, with all data : external + competition one  check the files s
 * mpimg.imread returns normalized image in [0, 1], cv2.imread returns it in [0, 255] (255 as maximum pixel value)
 * plt.imshow needs image array to be in [0, 1] or [0, 255]
 * albumentations' rotate shits in the interpolated area.
+* .detach() makes variable' grad_required=False, the variable still remains on CUDA, make as many computations as possible on CUDA, use .cpu() in rarest of the cases, or when you wanna change the tensors to numpy use .cpu().numpy() because it can't be directly changed to numpy variable without shifting it to host memory, makes sense.
+* test.py with tta=False, takes about 2 mins for first predictions, about 16 seconds for subsequent predictions, boi now you know what pin_memory=True does.
+* for tta you don't have to pass image from each augmentation and then take the average, one other approach is to predict multiple times and take average and as the augmentationss are random, you get whachyouwantmyboi.
+*
