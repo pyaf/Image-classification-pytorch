@@ -18,7 +18,7 @@ import torch.utils.data as data
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.metrics import cohen_kappa_score
 from models import Model, get_model
-from utils import get_preds
+from utils import get_preds, mkdir
 from image_utils import *
 
 
@@ -40,76 +40,23 @@ def get_parser():
     return parser
 
 
-def get_best_threshold(model, fold, total_folds):
-    """
-    root: the folder with the images
-    model: the model to use for prediction
-    fold: which are we talking abt? gotta get the val set
-    total_folds: required for val set
-    train_df: training dataframe
-    """
-
-    train_df_path = "data/train.csv"
-    train_df = pd.read_csv(train_df_path)
-    bad_indices = np.load("data/bad_train_indices.npy")
-    df = train_df.drop(train_df.index[bad_indices])  # remove duplicates
-    kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
-    train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
-    train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
-    # a dataloader for val set
-    root = "data/train_images"
-    valset = DataLoader(
-        TestDataset(root, val_df, size, mean, std, False),
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True if use_cuda else False,
-    )
-    print("Getting predictions on validation set for fold %d..." % fold)
-    val_pred = get_predictions(model, valset, False)
-
-    def compute_score_inv(threshold):
-        # pdb.set_trace()
-        y1 = val_pred > threshold
-        y1 = get_preds(y1, num_classes)
-        y2 = val_df.diagnosis.values
-        score = cohen_kappa_score(y1, y2, weights="quadratic")
-        return 1 - score
-
-    print("Getting the best threshold..")
-    simplex = scipy.optimize.minimize(compute_score_inv, 0.5, method="nelder-mead")
-
-    best_threshold = simplex["x"][0]
-    print("best threshold: %s" % best_threshold)
-    return best_threshold
-
-
 class TestDataset(data.Dataset):
-    def __init__(self, root, df, size, mean, std, tta=True):
+    def __init__(self, root, df, size, mean, std, tta=4):
         self.root = root
         self.size = size
         self.fnames = list(df["id_code"])
         self.num_samples = len(self.fnames)
-        #self.transform = albumentations.Compose(
-        #    []
-        #)
-        self.TTA = (
+        self.tta = tta
+        self.TTA = albumentations.Compose(
             [
                 #albumentations.RandomRotate90(p=1),
-                albumentations.Transpose(p=1),
-                albumentations.Flip(p=1),
-                #albumentations.RandomScale(scale_limit=0.1),
-                albumentations.Compose(
-                    [
-                        #albumentations.RandomRotate90(p=0.8),
-                        albumentations.Transpose(p=0.8),
-                        albumentations.Flip(p=0.8),
-                        #albumentations.RandomScale(scale_limit=0.1),
-                    ]
-                ),
+                albumentations.Transpose(p=0.5),
+                albumentations.Flip(p=0.5),
+                albumentations.RandomScale(scale_limit=0.1),
+
             ]
         )
-        self.last_transform = albumentations.Compose(
+        self.transform = albumentations.Compose(
             [
                 albumentations.Normalize(mean=mean, std=std, p=1),
                 albumentations.Resize(size, size),
@@ -124,40 +71,30 @@ class TestDataset(data.Dataset):
         # image = load_ben_gray(path)
         image = load_ben_color(path, size=self.size, crop=False)
 
-        images = [
-            self.last_transform(image=image)["image"]
-        ]
-        if self.TTA:
-            for aug in self.TTA:
-                aug_img = aug(image=image)["image"]
-                #aug_img = self.transform(image=aug_img)["image"]
-                aug_img = self.last_transform(image=aug_img)["image"]
-                images.append(aug_img)
+        images = [self.transform(image=image)["image"]]
+        for _ in range(self.tta): # perform ttas
+            aug_img = self.TTA(image=image)["image"]
+            aug_img = self.transform(image=aug_img)["image"]
+            images.append(aug_img)
         return torch.stack(images, dim=0)
 
     def __len__(self):
         return self.num_samples
 
 
-def get_predictions(model, testset, use_tta):
+def get_predictions(model, testset, tta):
     """return all predictions on testset in a list"""
     num_images = len(testset)
     predictions = []
     for i, batch in enumerate(tqdm(testset)):
-        if use_tta:
+        if tta:
             for images in batch:  # images.shape [n, 3, 96, 96] where n is num of 1+tta
                 preds = torch.sigmoid(model(images.to(device))) # [n, num_classes]
                 predictions.append(preds.mean(dim=0).detach().tolist())
         else:
             preds = model(batch[:, 0].to(device))
-            # preds = torch.argmax(preds.cpu(), dim=1).tolist() # CELoss
-            # preds = (torch.sigmoid(preds) > threshold).cpu().numpy()
-            # preds = get_preds(preds, num_classes)
-            # predictions.extend(preds.tolist())
-
             preds = torch.sigmoid(preds).detach().tolist() #[1]
             predictions.extend(preds)
-        # if i==10:break
 
     return np.array(predictions)
 
@@ -173,7 +110,9 @@ def get_model_name_fold(model_folder_path):
 
 if __name__ == "__main__":
     '''
-    Predicts on train/test set using all the checkpoints saved in the model folder path
+    Generates predictions on train/test set using the ckpts saved in the model folder path
+    and saves them in npy_folder in npy format which can be analyses later for different
+    thresholds
     '''
     parser = get_parser()
     args = parser.parse_args()
@@ -181,22 +120,20 @@ if __name__ == "__main__":
     predict_on = args.predict_on
     model_name, fold = get_model_name_fold(model_folder_path)
 
-    print("Using model: %s | fold: %s" % (model_name, fold))
     if predict_on == "test":
-        print("Predicting on test set")
-        root = "data/test_images/"
         sample_submission_path = "data/sample_submission.csv"
     else:
-        print("Predicting on train set")
-        root = "data/train_images/"
         sample_submission_path = "data/train.csv"
 
-    total_folds = 5
+    tta = 4 # number of augs in tta
+    start_epoch = 0
+    end_epoch = 10
+
+    root = f"data/{predict_on}_images/"
     size = 224
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
     use_cuda = True
-    use_tta = False
     num_classes = 5
     num_workers = 4
     batch_size = 8
@@ -209,41 +146,36 @@ if __name__ == "__main__":
 
     df = pd.read_csv(sample_submission_path)
     testset = DataLoader(
-        TestDataset(root, df, size, mean, std, use_tta),
+        TestDataset(root, df, size, mean, std, tta),
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True if use_cuda else False,
     )
-    test_sub = pd.read_csv(sample_submission_path)
+
     model = get_model(model_name, num_classes, pretrained=None)
     model.to(device)
     model.eval()
 
-    epochs = len(glob(os.path.join(model_folder_path, "ckpt*.pth"))) - 1 #rm ckpt.pth
-    print("Total epochs: ", epochs)
-    print("Using tts:", use_tta)
-    for epoch in range(11, epochs):
+    npy_folder = os.path.join(model_folder_path, "%s_npy" % predict_on)
+    mkdir(npy_folder)
+
+    print(f"\nUsing model: {model_name} | fold: {fold}")
+    print(f"Predicting on: {predict_on} set")
+    print(f"Root: {root}")
+    print(f"Saving predictions at: {npy_folder}")
+    print(f"From epoch {start_epoch} to {end_epoch}")
+    print(f"Using tta: {tta}\n")
+
+    for epoch in range(start_epoch, end_epoch):
+        print(f"Using ckpt{epoch}.pth")
         ckpt_path = os.path.join(model_folder_path, "ckpt%d.pth" % epoch)
         sub_path = ckpt_path.replace(".pth", "%s.csv" % predict_on) # /ckpt10train.csv
         state = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
-        print("Using trained model at %s" % ckpt_path)
         model.load_state_dict(state["state_dict"])
-
-        best_threshold = state["best_threshold"]
-        #best_threshold = 0.5 ######################################### <<<<<<<
-
-        print("best threshold: ", best_threshold)
-        # best_threshold = get_best_threshold(model, fold, total_folds)
-        predictions = get_predictions(model, testset, use_tta)
-        predictions = predictions > best_threshold
-        predictions = get_preds(predictions, num_classes)
-
-        for idx, pred in enumerate(predictions):
-            test_sub.loc[idx, "diagnosis"] = pred
-
-        print("Saving predictions at %s \n" % sub_path)
-        test_sub.to_csv(sub_path, index=False)
+        preds = get_predictions(model, testset, tta)
+        np.save(os.path.join(npy_folder, f"{predict_on}_ckpt{epoch}.npy"), preds)
+        print("Predictions saved!")
 
 
 '''

@@ -58,9 +58,9 @@ def get_transforms(phase, size, mean, std):
         list_transforms.extend(
             [
                 # albumentations.Rotate(limit=360, p=0.5),
-                #albumentations.Transpose(p=0.5),
+                albumentations.Transpose(p=0.5),
                 albumentations.Flip(p=0.5),
-                #albumentations.RandomScale(scale_limit=0.1),
+                albumentations.RandomScale(scale_limit=0.1),
                 #albumentations.OneOf(
                 #   [
                 #       albumentations.CLAHE(clip_limit=2),
@@ -97,11 +97,28 @@ def get_sampler(df, class_weights=None):
         )  # [2]
         # class_weights = max(label_counts) / label_counts # higher count, lower weight
         # class_weights = class_weights / sum(class_weights)
-        class_weights = [1, 1, 1, 1.3, 1]
+        class_weights = [1, 1, 1, 1, 1]
     print("weights", class_weights)
     dataset_weights = [class_weights[idx] for idx in df["diagnosis"]]
     datasampler = sampler.WeightedRandomSampler(dataset_weights, len(df))
     return datasampler
+
+def resampled(df):
+
+    ''' resample 10k data points from old data, following the dist of org data '''
+    def sample(obj, replace=True, total=20000):
+        return obj.sample(n=int(count_dict[obj.name] * total), replace=replace)
+
+    count_dict = {
+        0: 0.5,
+        2: 0.28,
+        1: 0.11,
+        4: 0.09,
+        3: 0.06
+    } # approx dist of org data, notice the order of keys
+
+    sampled_df = df.groupby('diagnosis').apply(sample).reset_index(drop=True)
+    return sampled_df
 
 
 def provider(
@@ -121,23 +138,30 @@ def provider(
     print('df_path', df_path)
     df = pd.read_csv(df_path)
     HOME = os.path.abspath(os.path.dirname(__file__))
-    bad_indices = np.load(os.path.join(HOME, "data/bad_train_indices.npy"))
-    dup_indices = np.load(
-        os.path.join(HOME, "data/dups_with_same_diagnosis.npy")
-    )  # [3]
-    duplicates = df.iloc[dup_indices]
-    all_dups = np.array(list(bad_indices) + list(dup_indices))
-    df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
+
+    #bad_indices = np.load(os.path.join(HOME, "data/bad_train_indices.npy"))
+    #dup_indices = np.load(
+    #    os.path.join(HOME, "data/dups_with_same_diagnosis.npy")
+    #)  # [3]
+    #duplicates = df.iloc[dup_indices]
+    #all_dups = np.array(list(bad_indices) + list(dup_indices))
+    #df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
+    ''' line 161 also commented out'''
 
     print('num_samples:', num_samples)
-    if num_samples:
+    if num_samples: # [4]
         df = df.iloc[:num_samples]
 
-    kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)  # 20 splits
+    ''' to be used only with old data training '''
+    df = resampled(df)
+    print('data dist:\n',  df['diagnosis'].value_counts(normalize=True))
+
+    kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
     train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
     train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
-    train_df = train_df.append(duplicates, ignore_index=True)  # add dups, not bad ones
-    # pdb.set_trace()
+
+    #train_df = train_df.append(duplicates, ignore_index=True)  # add dups, not bad ones
+
     df = train_df if phase == "train" else val_df
 
     image_dataset = ImageDataset(df, images_folder, size, mean, std, phase)
@@ -213,4 +237,6 @@ https://github.com/btgraham/SparseConvNet/tree/kaggle_Diabetic_Retinopathy_compe
 [2] .value_counts() returns in descending order of counts (not sorted by class numbers :)
 
 [3]: bad_indices are those which have conflicting diagnosises, duplicates are those which have same duplicates, we shouldn't let them split in train and val set, gotta maintain the sanctity of val set
+
+[4]: used when the dataframe include external data and we want to sample limited number of those
 """

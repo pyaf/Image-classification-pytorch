@@ -86,6 +86,9 @@ didn't help!
 
 * bengrahmscolor: bengramhms color images on orginal data only
 * bgcold: bengrahms color images on old data only
+* bgpreold: bengrahms color images, model pre-trained on old data
+* bgpreoldsamp: same as above, with sampled data, according to the dist of org data
+*
 
 
 # Models on training:
@@ -197,6 +200,33 @@ So, there's this keras' starter kernel with simple imread, resize preprocessing,
 
 So, what I'm gonna do now is reproduce this result in pytorch, and see what the heck am I doing wrong.
 
+# 13 Jul
+I've been playing with densenet keras starter kernel on kaggle, key takeaways are that generalization is a big issue in this competition + the threshold we use for predicition,
+
+** What about 5 thresholds optimised for each class?
+
+So, now I've resnext101_32x4d_v0/1 pretrained on old data, gotta use them as basemodels to train on org data.
+
+
+* 13-7_resnext101_32x4d_v1_fold0_bgpreold: training on bgcolor with lr 1e-5, starting with model pretrained on bgcolor old data (weights/12-7_resnext101_32x4d_v1_fold0_bgcold/ckpt16.pth), val set best thresholding has been set to 0.5. total_folds = 7 (val set: ~15%), model being saved according to best loss, qwk is unstable metric to save upon. I won't be training it for long, can't afford overfitting. >> So, I submitted ckpt26.pth with threshold optimised with best performing public submission.csv: LB: 0.687 The model is getting biased towards class 0
+
+The distribution of old data is different than present data, we can't just add them up and train a model based on that, so now I'm gonna sample out data from old data such that it resembles the original data distribution
+
+Org data distribution, class wise, normalized: array([0.49290005, 0.10103768, 0.27280175, 0.05270344, 0.08055707])
+old data distribution, class wise, normalized: array([0.73478335, 0.06954962, 0.15065763, 0.02485338, 0.02015601])
+
+As it can be seen, old data is heavily biased towards class 0, the reason for my previous model's behaviour.
+
+So, now I'm gonna re-pretrain the model on old data and then train it on new one, fingers crossed, yayye never fucking give up.
+
+* 13-7_resnext101_32x4d_v1_fold0_bgcoldsamp: same as 12-7_resnext101_32x4d_v1_fold0_bgcold, but trained on 20k samples, sampled according to dist. of current comp.'s dataset.
+*
+>> Forgot to update the lr to 1e-3, it is being trained on 1e-4 that's why it's so slow to plateau :( ek aadmi itni saari cheese kare to kare kaise?
+I've stopped training at epoch 31, will continue from there in the morning, gotta sleep.
+
+A new experiment can be this: pretrain on a balanced external data, then use that model on to the original data,  what's say?
+
+
 
 # TODO:
 
@@ -205,7 +235,7 @@ So, what I'm gonna do now is reproduce this result in pytorch, and see what the 
 [] Crop images in datapipeline, add external data too
 [] Analyse the heatmaps of the basemodel of a trained model, I think AdaptiveAvgPooling is detrimental to the model learning,
 [] checkout for duplicates in external data too
-
+[] print all the hyperparameters and initial infos you can about the model training , it helps trust me
 
 # Revelations:
 
@@ -215,4 +245,4 @@ So, what I'm gonna do now is reproduce this result in pytorch, and see what the 
 * .detach() makes variable' grad_required=False, the variable still remains on CUDA, make as many computations as possible on CUDA, use .cpu() in rarest of the cases, or when you wanna change the tensors to numpy use .cpu().numpy() because it can't be directly changed to numpy variable without shifting it to host memory, makes sense.
 * test.py with tta=False, takes about 2 mins for first predictions, about 16 seconds for subsequent predictions, boi now you know what pin_memory=True does.
 * for tta you don't have to pass image from each augmentation and then take the average, one other approach is to predict multiple times and take average and as the augmentationss are random, you get whachyouwantmyboi.
-*
+* loc for pd series and iloc for pd df.

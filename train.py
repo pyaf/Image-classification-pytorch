@@ -30,24 +30,29 @@ class Trainer(object):
     def __init__(self):
         remark = open("remark.txt", "r").read()
         self.fold = 0
-        self.total_folds = 5
+        self.total_folds = 7
         self.class_weights = None #[1, 1, 1, 1, 1]
         self.model_name = "resnext101_32x4d_v1"
         #self.model_name = "se_resnet50_v0"
         #self.model_name = "densenet121"
-        ext_text = "bgcold"
+        ext_text = "bgcoldsamp"
         self.num_samples = None #5000
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
         print(f"model: {self.folder}")
         self.resume = False
-        #train_df_name = "train.csv"
+
+        self.pretrained = False
+        self.pretrained_path = "weights/12-7_resnext101_32x4d_v1_fold0_bgcold/ckpt16.pth"
+
+        train_df_name = "train.csv"
         #train_df_name = "train_all.csv"
-        train_df_name = "train_old.csv"
+        #train_df_name = "train_old.csv"
         #data_folder = 'external_data'
+
         self.num_workers = 8
         self.batch_size = {"train": 16, "val": 8}
         self.num_classes = 5
-        self.top_lr = 1e-4
+        self.top_lr = 1e-5
         self.base_lr = self.top_lr * 0.001
         # self.base_lr = None
         self.momentum = 0.95
@@ -76,6 +81,7 @@ class Trainer(object):
             "torch.cuda.FloatTensor" if self.cuda else "torch.FloatTensor"
         )
         torch.set_default_tensor_type(self.tensor_type)
+
         self.net = Model(self.model_name, self.num_classes)
         #self.criterion = torch.nn.CrossEntropyLoss()
         self.criterion = torch.nn.BCELoss() # requires sigmoid pred inputs
@@ -98,13 +104,13 @@ class Trainer(object):
         )
         logger = logger_init(self.save_folder)
         self.log = logger.info
-        if self.resume:
-            self.resume_net()
+        if self.resume or self.pretrained:
+            self.load_state()
         else:
             self.initialize_net()
         self.net = self.net.to(self.device)
-        if self.cuda:
-            cudnn.benchmark = True
+
+        if self.cuda: cudnn.benchmark = True
         self.tb = {
                 x: Logger(os.path.join(self.save_folder, "logs", x))
                 for x in ["train", "val"]
@@ -129,22 +135,28 @@ class Trainer(object):
         }
         save_hyperparameters(self, remark)
 
-    def resume_net(self):
-        self.resume_path = os.path.join(self.save_folder, "ckpt.pth")
-        self.log("Resuming training, loading {} ...".format(self.resume_path))
-        state = torch.load(self.resume_path, map_location=lambda storage, loc: storage)
+    def load_state(self): # [4]
+        if self.pretrained:
+            path = self.pretrained_path
+            self.log("loading pretrained, {} ...".format(path))
+        elif self.resume:
+            path = self.resume_path
+            self.log("Resuming training, loading {} ...".format(path))
+        state = torch.load(path, map_location=lambda storage, loc: storage)
         self.net.load_state_dict(state["state_dict"])
-        self.optimizer.load_state_dict(state["optimizer"])
         if self.cuda:
             for opt_state in self.optimizer.state.values():
                 for k, v in opt_state.items():
                     if torch.is_tensor(v):
                         opt_state[k] = v.to(self.device)
-        #self.best_loss = state["best_loss"]
-        self.best_qwk = state["best_qwk"]
-        self.start_epoch = state["epoch"] + 1
+        if self.resume:
+            self.optimizer.load_state_dict(state["optimizer"])
+            self.best_loss = state["best_loss"]
+            self.best_qwk = state["best_qwk"]
+            self.start_epoch = state["epoch"] + 1
 
     def initialize_net(self):
+        # using `pretrainedmodels` library, models are already pretrained
         pass
 
     def forward(self, images, targets):
@@ -180,8 +192,8 @@ class Trainer(object):
                 iter_log(self.log, phase, epoch, iteration, total_iters, loss, start)
                 # break
         best_threshold = 0.5
-        if phase == "val":
-            best_threshold = meter.get_best_threshold()
+        #if phase == "val":
+        #    best_threshold = meter.get_best_threshold()
         epoch_loss = running_loss / total_images
         qwk = epoch_log(self.log, self.tb, phase, epoch, epoch_loss, meter, start)
         torch.cuda.empty_cache()
@@ -202,7 +214,7 @@ class Trainer(object):
             self.iterate(epoch, "train")
             state = {
                 "epoch": epoch,
-                #"best_loss": self.best_loss,
+                "best_loss": self.best_loss,
                 "best_qwk": self.best_qwk,
                 "state_dict": self.net.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
@@ -211,11 +223,11 @@ class Trainer(object):
             state["best_threshold"] = best_threshold
             torch.save(state, self.ckpt_path) # [2]
             self.scheduler.step(val_loss)
-            #if val_loss < self.best_loss:
-            if val_qwk > self.best_qwk:
+            if val_loss < self.best_loss:
+            #if val_qwk > self.best_qwk:
                 self.log("******** New optimal found, saving state ********")
-                #state["best_loss"] = self.best_loss = val_loss
-                state["best_qwk"] = self.best_qwk = val_qwk
+                state["best_loss"] = self.best_loss = val_loss
+                #state["best_qwk"] = self.best_qwk = val_qwk
                 torch.save(state, self.model_path)
             copyfile(
                 self.ckpt_path, os.path.join(self.save_folder, "ckpt%d.pth" % epoch)
@@ -237,4 +249,7 @@ LongTensor, BCELoss expects targets to be FloatTensor
 [2]: the ckpt.pth is saved after each train and val phase, val phase is neccessary becausue we want the best_threshold to be computed on the val set., Don't worry, the probability of your system going down just after a crucial training phase is low, just wait a few minutes for the val phase :p
 
 [3]: one tensorboard logger for train and val each, in same folder, so that we can see plots on the same graph
+
+[4]: if pretrained is true, a model state from self.pretrained path will be loaded, if self.resume is true, self.resume_path will be loaded, both are true, self.resume_path will be loaded
 '''
+
