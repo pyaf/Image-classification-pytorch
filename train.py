@@ -37,9 +37,10 @@ class Trainer(object):
         #self.model_name = "densenet121"
         ext_text = "bgcoldsamp"
         self.num_samples = None #5000
+        date = "13-7"
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
         print(f"model: {self.folder}")
-        self.resume = False
+        self.resume = True
 
         self.pretrained = False
         self.pretrained_path = "weights/12-7_resnext101_32x4d_v1_fold0_bgcold/ckpt16.pth"
@@ -140,20 +141,23 @@ class Trainer(object):
             path = self.pretrained_path
             self.log("loading pretrained, {} ...".format(path))
         elif self.resume:
-            path = self.resume_path
+            path = self.ckpt_path
             self.log("Resuming training, loading {} ...".format(path))
+
         state = torch.load(path, map_location=lambda storage, loc: storage)
         self.net.load_state_dict(state["state_dict"])
-        if self.cuda:
-            for opt_state in self.optimizer.state.values():
-                for k, v in opt_state.items():
-                    if torch.is_tensor(v):
-                        opt_state[k] = v.to(self.device)
+
         if self.resume:
             self.optimizer.load_state_dict(state["optimizer"])
             self.best_loss = state["best_loss"]
             self.best_qwk = state["best_qwk"]
             self.start_epoch = state["epoch"] + 1
+
+        if self.cuda:
+            for opt_state in self.optimizer.state.values():
+                for k, v in opt_state.items():
+                    if torch.is_tensor(v):
+                        opt_state[k] = v.to(self.device)
 
     def initialize_net(self):
         # using `pretrainedmodels` library, models are already pretrained
