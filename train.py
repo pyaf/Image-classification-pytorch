@@ -29,27 +29,27 @@ date = "%s-%s" % (now.day, now.month)
 class Trainer(object):
     def __init__(self):
         #remark = open("remark.txt", "r").read()
-        remark = "Training on old data, ~ 8k sampled acc to dist of current data"
+        remark = "Using model pretrained on 8k sampled old data images"
         self.fold = 0
-        self.total_folds = 7
+        self.total_folds = 6
         self.class_weights = None #[1, 1, 1, 1, 1]
         self.model_name = "resnext101_32x4d_v1"
         #self.model_name = "se_resnet50_v0"
         #self.model_name = "densenet121"
-        ext_text = "bgcoldsamp"
+        ext_text = "bgcpos"
         self.num_samples = None #5000
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
-        self.resume = False
+        self.resume = True
         self.pretrained = False
-        self.pretrained_path = "weights/12-7_resnext101_32x4d_v1_fold0_bgcold/ckpt16.pth"
-        #train_df_name = "train.csv"
+        self.pretrained_path = "weights/14-7_resnext101_32x4d_v1_fold0_bgcoldsamp/ckpt27.pth"
+        self.train_df_name = "train.csv"
         #train_df_name = "train_all.csv"
-        self.train_df_name = "train_old.csv"
+        #self.train_df_name = "train_old.csv"
         #data_folder = 'external_data'
         self.num_workers = 8
         self.batch_size = {"train": 16, "val": 8}
         self.num_classes = 5
-        self.top_lr = 1e-5
+        self.top_lr = 1e-4
         self.base_lr = self.top_lr * 0.001
         # self.base_lr = None
         self.momentum = 0.95
@@ -188,13 +188,13 @@ class Trainer(object):
             if iteration % 100 == 0:
                 iter_log(self.log, phase, epoch, iteration, total_iters, loss, start)
                 # break
-        best_threshold = 0.5
-        #if phase == "val":
-        #    best_threshold = meter.get_best_threshold()
+        best_thresholds = np.array([0.5] * 5)
+        if phase == "val":
+            best_thresholds = meter.get_best_thresholds()
         epoch_loss = running_loss / total_images
         qwk = epoch_log(self.log, self.tb, phase, epoch, epoch_loss, meter, start)
         torch.cuda.empty_cache()
-        return epoch_loss, qwk, best_threshold
+        return epoch_loss, qwk, best_thresholds
 
     def train(self):
         t0 = time.time()
@@ -216,8 +216,8 @@ class Trainer(object):
                 "state_dict": self.net.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
             }
-            val_loss, val_qwk, best_threshold = self.iterate(epoch, "val")
-            state["best_threshold"] = best_threshold
+            val_loss, val_qwk, best_thresholds = self.iterate(epoch, "val")
+            state["best_thresholds"] = best_thresholds
             torch.save(state, self.ckpt_path) # [2]
             self.scheduler.step(val_loss)
             if val_loss < self.best_loss:

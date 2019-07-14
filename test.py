@@ -20,7 +20,7 @@ from sklearn.metrics import cohen_kappa_score
 from models import Model, get_model
 from utils import get_preds, mkdir
 from image_utils import *
-
+from submission import get_best_threshold
 
 def get_parser():
     parser = ArgumentParser()
@@ -126,8 +126,8 @@ if __name__ == "__main__":
         sample_submission_path = "data/train.csv"
 
     tta = 4 # number of augs in tta
-    start_epoch = 15
-    end_epoch = 53
+    start_epoch = 0
+    end_epoch = 17
 
     root = f"data/{predict_on}_images/"
     size = 224
@@ -173,6 +173,10 @@ if __name__ == "__main__":
         sub_path = ckpt_path.replace(".pth", "%s.csv" % predict_on) # /ckpt10train.csv
         state = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
         model.load_state_dict(state["state_dict"])
+        #fold, total_folds = 0, 7
+        #best_thresholds = get_best_threshold(model, size, mean, std, fold, total_folds, batch_size, num_workers, use_cuda, device)
+        #print(best_thresholds)
+        #continue
         preds = get_predictions(model, testset, tta)
         np.save(os.path.join(npy_folder, f"{predict_on}_ckpt{epoch}.npy"), preds)
         print("Predictions saved!")

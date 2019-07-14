@@ -54,7 +54,7 @@ def get_parser():
     return parser
 
 
-def get_best_threshold(model, fold, total_folds):
+def get_best_threshold(model, size, mean, std, fold, total_folds, batch_size, num_workers, use_cuda, device):
     """
     root: the folder with the images
     model: the model to use for prediction
@@ -80,20 +80,23 @@ def get_best_threshold(model, fold, total_folds):
         pin_memory=True if use_cuda else False,
     )
     print("Getting predictions on validation set for fold %d..." % fold)
-    val_pred = get_predictions(model, valset, False)
+    val_pred = get_predictions(model, valset, False, device)
 
     def compute_score_inv(threshold):
         # pdb.set_trace()
         y1 = val_pred > threshold
-        y1 = get_preds(y1, num_classes)
+        y1 = get_preds(y1, 5) # num_classes = 5
         y2 = val_df.diagnosis.values
         score = cohen_kappa_score(y1, y2, weights="quadratic")
         return 1 - score
 
     print("Getting the best threshold..")
-    simplex = scipy.optimize.minimize(compute_score_inv, 0.5, method="nelder-mead")
 
-    best_threshold = simplex["x"][0]
+    initial_coeffs = np.array([0.5, 0.5, 0.5, 0.5, 0.5])
+    simplex = scipy.optimize.minimize(
+            compute_score_inv, initial_coeffs, method="nelder-mead")
+
+    best_threshold = simplex["x"]
     print("best threshold: %s" % best_threshold)
     return best_threshold
 
@@ -153,7 +156,7 @@ class TestDataset(data.Dataset):
         return self.num_samples
 
 
-def get_predictions(model, testset, use_tta):
+def get_predictions(model, testset, use_tta, device):
     """return all predictions on testset in a list"""
     num_images = len(testset)
     predictions = []
@@ -177,10 +180,9 @@ def get_predictions(model, testset, use_tta):
     return np.array(predictions)
 
 
-def get_model_name_fold(ckpt_path):
-    # example ckpt_path = weights/9-7_{modelname}_fold0_text/ckpt.pth
-    model_folder = ckpt_path.split("/")[1]  # 9-7_{modelname}_fold0_text
-    #model_name = model_folder.split("_")[1]  # modelname
+def get_model_name_fold(model_folder_path):
+    # example ckpt_path = weights/9-7_{modelname}_fold0_text/
+    model_folder = model_folder_path.split("/")[1]  # 9-7_{modelname}_fold0_text
     model_name = "_".join(model_folder.split("_")[1:-2])  # modelname
     fold = model_folder.split("_")[-2]  # fold0
     fold = fold.split("fold")[-1]  # 0
@@ -246,7 +248,7 @@ if __name__ == "__main__":
         pin_memory=True if use_cuda else False,
     )
 
-    predictions = get_predictions(model, testset, use_tta)
+    predictions = get_predictions(model, testset, use_tta, device)
     predictions = predictions > best_threshold
     predictions = get_preds(predictions, num_classes)
 

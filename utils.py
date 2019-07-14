@@ -67,7 +67,7 @@ class Meter:
         self.epoch = epoch
         self.save_folder = os.path.join(save_folder, "logs")
         self.num_classes = 5  # hard coded, yeah, I know
-        self.best_threshold = 0.5
+        self.best_thresholds = np.array([0.5] * 5) # initial guess
 
     def update(self, targets, outputs):
         '''targets, outputs are detached CUDA tensors'''
@@ -81,23 +81,23 @@ class Meter:
         self.predictions.extend(outputs.tolist())
         # self.predictions.extend(torch.argmax(outputs, dim=1).tolist()) #[2]
 
-    def get_best_threshold(self):
+    def get_best_thresholds(self):
         """Used in the val phase of iteration, see [4]"""
         self.predictions = np.array(self.predictions)
         self.targets = np.array(self.targets)
         simplex = scipy.optimize.minimize(
             compute_score_inv,
-            0.5,
+            self.best_thresholds,
             args=(self.predictions, self.targets, self.num_classes),
             method="nelder-mead",
         )
-        self.best_threshold = simplex["x"][0]
-        print("Best threshold: %s" % self.best_threshold)
-        return self.best_threshold
+        self.best_thresholds = simplex["x"]
+        print("Best thresholds: %s" % self.best_thresholds)
+        return self.best_thresholds
 
     def get_cm(self):
-        threshold = self.best_threshold
-        self.predictions = np.array(self.predictions) > threshold  # [5]
+        thresholds = self.best_thresholds
+        self.predictions = np.array(self.predictions) > thresholds  # [5]
         self.predictions = get_preds(self.predictions, self.num_classes)
         cm = ConfusionMatrix(self.targets, self.predictions)
         qwk = cohen_kappa_score(self.targets, self.predictions, weights="quadratic")
@@ -198,6 +198,8 @@ def save_hyperparameters(trainer, remark):
         f.write(f"train_df_name: {trainer.train_df_name}\n")
         f.write(f"images_folder: {trainer.images_folder}\n")
         f.write(f"resume: {trainer.resume}\n")
+        f.write(f"pretrained: {trainer.pretrained}\n")
+        f.write(f"pretrained_path: {trainer.pretrained_path}\n")
         f.write(f"folder: {trainer.folder}\n")
         f.write(f"fold: {trainer.fold}\n")
         f.write(f"total_folds: {trainer.total_folds}\n")

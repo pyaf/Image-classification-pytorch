@@ -61,8 +61,7 @@ didn't help!
 * bgpreold: bengrahms color images, model pre-trained on old data
 * bgc20ksamp: 20k images sampled from org dataset accord to its distribution.
 * bgcoldsamp: same as above, with sampled data, according to the dist of org data
-*
-
+* bgcpos: using ben grahms color images, with model *p*retrained on *o*ld data *s*ampled acc to dist of present data.
 
 
 # Models on training:
@@ -205,13 +204,14 @@ I think 1e-4 is a good lr, though model is slow to learn, I've never achived qwk
 
 test predicting using 13-7_resnext101_32x4d_v1_fold0_bgcoldsamp is good, it would be wise to train on a mixed dataset with dist same as comp.'s dataset
 I MADE A MISTAKE: this above ^ model was trained on new data only with 20k sampled according to the actual distribution :facepalm:
-despite the mistake, for which I wasted so much time, a key takeaway is 1e-4 is better lr than 1e-3, I achieved 0.95 on val set
+despite the mistake, for which I wasted so much time, a key takeaway is 1e-5 is better lr than 1e-4, I achieved 0.95 on val set
 
 *** renaming 13-7_resnext101_32x4d_v1_fold0_bgcoldsamp to bgc20ksamp, sorry
 
 LB: 0.63 for ckpt51.pth, th: 0.65, val qwk: 0.95, train qwk: 0.90
 
-** BUG **: the 20k images were sampled with replace=True, so the val set was not disjoint to train set :( :(
+** BUG **: the 20k images were sampled with replace=True, so the val set was not disjoint to train set :( :(, so the previous model was overfitting.
+and 1e-5 if painfully slow. use 1e-4
 
 *** mistake over ***
 
@@ -224,10 +224,19 @@ Things to check, just before starting the model training:
 * are you resampling images?
 
 
-* 14_7-resnext101_32x4d_v1_fold0_bgcoldsamp/: training on 8k images sampled from old data, sampled acc to dist of current data., replace=False
+* 14_7-resnext101_32x4d_v1_fold0_bgcoldsamp/: training on 8k images sampled from old data, sampled acc to dist of current data., replace=False, top_lr=1e-4
+epoch 23: val loss > train loss but the val loss is still decreasing. choosing ckpt27, comparing this with the model trained on whole old data: this one has comparable qwk scores, but bad acc and loss.
 
+* 14_7-resnext101_32x4d_v1_fold0_bgcpos: starting with previous models ckpt27.pth, total_folds=6, training on bgc of current data. val loss > train loss at ckpt 12., submitted ckpt15.pth with optimised kappa (wrt submission.csv): LB: 0.71
 
+The LB scores are generated on a private test set, so those public submission.csvs are not that useful, they don't represent the true picture..
 
+Now, optimising 5 coefficient thresholds one for each class. Looks promising. Will be plotting the val qwk using optimized thresholds (5, one for each class) from now on. Still, best model will be saved using val loss, anyway I'm not using the best model for any of my submissions, gotta analyse the outputs of all the ckpts before deciding which one to choose and which thresholds to choose. Look at the optimised thresholds for ckpt13: [0.44824953 0.65033665 0.54202567 0.40581288 0.47455201], all these thresholds vary so much, it's imp to use class wise optimised thresholds.
+
+ckpt13: val set optimised thresholds: [0.5091, 0.4916, 0.5216, 0.4965, 0.4971]: (array([0, 1, 2, 3, 4]), array([ 236,  261, 1194,  182,   55])): LB: 0.700
+ckpt13: test submission optimised thres:  [0.44824953, 0.65033665, 0.54202567, 0.40581288, 0.47455201]: (array([0, 1, 2, 3, 4]), array([ 338,  168, 1103,  255,   64])): LB: 0.717
+
+I have no idea what so ever.
 
 # Questions:
 
