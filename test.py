@@ -126,8 +126,8 @@ if __name__ == "__main__":
         sample_submission_path = "data/train.csv"
 
     tta = 4 # number of augs in tta
-    start_epoch = 0
-    end_epoch = 10
+    start_epoch = 15
+    end_epoch = 53
 
     root = f"data/{predict_on}_images/"
     size = 224
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     print(f"From epoch {start_epoch} to {end_epoch}")
     print(f"Using tta: {tta}\n")
 
-    for epoch in range(start_epoch, end_epoch):
+    for epoch in range(start_epoch, end_epoch+1):
         print(f"Using ckpt{epoch}.pth")
         ckpt_path = os.path.join(model_folder_path, "ckpt%d.pth" % epoch)
         sub_path = ckpt_path.replace(".pth", "%s.csv" % predict_on) # /ckpt10train.csv

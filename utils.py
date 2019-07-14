@@ -195,6 +195,7 @@ def save_hyperparameters(trainer, remark):
     with open(hp_file, "a") as f:
         f.write(f"Time: {time_now}\n")
         f.write(f"model_name: {trainer.model_name}\n")
+        f.write(f"train_df_name: {trainer.train_df_name}\n")
         f.write(f"images_folder: {trainer.images_folder}\n")
         f.write(f"resume: {trainer.resume}\n")
         f.write(f"folder: {trainer.folder}\n")
@@ -215,6 +216,7 @@ def save_hyperparameters(trainer, remark):
         f.write(f"augmentations: {augmentations}\n")
         f.write(f"remark: {remark}\n")
 
+    print(open(hp_file, "r").read())
 
 """Footnotes:
 

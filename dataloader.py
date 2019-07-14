@@ -105,9 +105,9 @@ def get_sampler(df, class_weights=None):
 
 def resampled(df):
 
-    ''' resample 10k data points from old data, following the dist of org data '''
-    def sample(obj, replace=True, total=20000):
-        return obj.sample(n=int(count_dict[obj.name] * total), replace=replace)
+    ''' resample `total` data points from old data, following the dist of org data '''
+    def sample(obj, total=7800): # [5]
+        return obj.sample(n=int(count_dict[obj.name] * total), replace=False)
 
     count_dict = {
         0: 0.5,
@@ -135,7 +135,6 @@ def provider(
     num_workers=4,
     num_samples=4000,
 ):
-    print('df_path', df_path)
     df = pd.read_csv(df_path)
     HOME = os.path.abspath(os.path.dirname(__file__))
 
@@ -148,12 +147,13 @@ def provider(
     #df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
     ''' line 161 also commented out'''
 
-    print('num_samples:', num_samples)
+    #print('num_samples:', num_samples)
     if num_samples: # [4]
         df = df.iloc[:num_samples]
 
     ''' to be used only with old data training '''
     df = resampled(df)
+    print(f'sampled df shape: {df.shape}')
     print('data dist:\n',  df['diagnosis'].value_counts(normalize=True))
 
     kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
@@ -235,8 +235,7 @@ https://github.com/btgraham/SparseConvNet/tree/kaggle_Diabetic_Retinopathy_compe
 
 [1] CrossEntropyLoss doesn't expect inputs to be one-hot, but indices
 [2] .value_counts() returns in descending order of counts (not sorted by class numbers :)
-
 [3]: bad_indices are those which have conflicting diagnosises, duplicates are those which have same duplicates, we shouldn't let them split in train and val set, gotta maintain the sanctity of val set
-
 [4]: used when the dataframe include external data and we want to sample limited number of those
+[5]: as replace=False,  total samples can be a finite number so that those many number of classes exist in the dataset, and as the count_dist is approx, not normalized to 1, 7800 is optimum, totaling to ~8100 samples
 """

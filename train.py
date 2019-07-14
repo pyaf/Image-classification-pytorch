@@ -28,7 +28,8 @@ date = "%s-%s" % (now.day, now.month)
 
 class Trainer(object):
     def __init__(self):
-        remark = open("remark.txt", "r").read()
+        #remark = open("remark.txt", "r").read()
+        remark = "Training on old data, ~ 8k sampled acc to dist of current data"
         self.fold = 0
         self.total_folds = 7
         self.class_weights = None #[1, 1, 1, 1, 1]
@@ -37,19 +38,14 @@ class Trainer(object):
         #self.model_name = "densenet121"
         ext_text = "bgcoldsamp"
         self.num_samples = None #5000
-        date = "13-7"
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
-        print(f"model: {self.folder}")
-        self.resume = True
-
+        self.resume = False
         self.pretrained = False
         self.pretrained_path = "weights/12-7_resnext101_32x4d_v1_fold0_bgcold/ckpt16.pth"
-
-        train_df_name = "train.csv"
+        #train_df_name = "train.csv"
         #train_df_name = "train_all.csv"
-        #train_df_name = "train_old.csv"
+        self.train_df_name = "train_old.csv"
         #data_folder = 'external_data'
-
         self.num_workers = 8
         self.batch_size = {"train": 16, "val": 8}
         self.num_classes = 5
@@ -67,22 +63,19 @@ class Trainer(object):
         self.best_qwk = 0
         self.best_loss = float("inf")
         self.start_epoch = 0
-        self.num_epochs = 1000
+        self.num_epochs = 100
         self.phases = ["train", "val"]
         self.cuda = torch.cuda.is_available()
         torch.set_num_threads(12)
         self.device = torch.device("cuda:0" if self.cuda else "cpu")
         data_folder = 'data'
         self.images_folder = os.path.join(HOME, data_folder, "train_images")
-        self.df_path = os.path.join(HOME, data_folder, train_df_name)
+        self.df_path = os.path.join(HOME, data_folder, self.train_df_name)
         self.save_folder = os.path.join(HOME, self.folder)
         self.model_path = os.path.join(self.save_folder, "model.pth")
         self.ckpt_path = os.path.join(self.save_folder, "ckpt.pth")
-        self.tensor_type = (
-            "torch.cuda.FloatTensor" if self.cuda else "torch.FloatTensor"
-        )
+        self.tensor_type = "torch%s.FloatTensor" % (".cuda" if self.cuda else "")
         torch.set_default_tensor_type(self.tensor_type)
-
         self.net = Model(self.model_name, self.num_classes)
         #self.criterion = torch.nn.CrossEntropyLoss()
         self.criterion = torch.nn.BCELoss() # requires sigmoid pred inputs

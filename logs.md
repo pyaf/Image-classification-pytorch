@@ -1,33 +1,5 @@
 # Logs for the competition
 
-8 Mar, se_resnext50_32x4d with no Maxpool, modified Linear with out_features=1
-input size 112x112,
-
-8Mar-9Mar se_resnext50_32x4d v2 model: with no Maxpool, pad, avg_pool, flatten, dropout(0.3), linear
-top_lr = 1e-4, base_lr = 2*top_lr till first 10 epochs. input image size 96x96
-self.top_lr = 7e-5 #4e-4 #0.00007 #1e-3
-self.base_lr = self.top_lr * 0.001
-self.momentum = 0.95
-self.epoch_2_lr = {1: 2, 3: 5, 5: 2, 6:5, 7:2, 9:5} # factor to scale base_lr with
-
-9Mar: se_resnext50 v3 model: no maxpool, adaptive avg pool, flatten, dropout, linear,
-input image size of 96x96, top_lr=7e-5, base_lr as the previous one.
-
-* It is better at 32 batch size for train&val , 64 will run with a slight decrease in time, taking up almost all of the GPU memory*
-
-9Mar v3, fold 2 trained with top_lr 1e-4
-9Mar v3, fold 3 to be trained with top_lr = 5e-4
-
-11Mar nasnetamobile models with input 3x224x224 trained with RGB for first time.
-with only last_linear layer modified, use get_model function with std, mean of imagenet ONLY for prediction
-
-
-11Mar nasnetamobile_v2 implemented, with std mean of 0.5 each (as recommended by pretrainedmodels project), with adaptiveAvgPool2d, dropout, linear, top_lr = 7e-5, base_lr = top_lr * .001 ====>>>> really really bad performance. BECAUSE of not using same mean and std conf in submission script -_-
-
-11Mar nasnetamobile_v2 trained on fold3 with top_lr = 7e-5, base_lr = top_lr * .01
-
-
-
 # ADPOS diabetic retina
 
 # Observations:
@@ -87,8 +59,10 @@ didn't help!
 * bengrahmscolor: bengramhms color images on orginal data only
 * bgcold: bengrahms color images on old data only
 * bgpreold: bengrahms color images, model pre-trained on old data
-* bgpreoldsamp: same as above, with sampled data, according to the dist of org data
+* bgc20ksamp: 20k images sampled from org dataset accord to its distribution.
+* bgcoldsamp: same as above, with sampled data, according to the dist of org data
 *
+
 
 
 # Models on training:
@@ -200,7 +174,7 @@ So, there's this keras' starter kernel with simple imread, resize preprocessing,
 
 So, what I'm gonna do now is reproduce this result in pytorch, and see what the heck am I doing wrong.
 
-# 13 Jul
+### 13 Jul
 I've been playing with densenet keras starter kernel on kaggle, key takeaways are that generalization is a big issue in this competition + the threshold we use for predicition,
 
 ** What about 5 thresholds optimised for each class?
@@ -219,14 +193,45 @@ As it can be seen, old data is heavily biased towards class 0, the reason for my
 
 So, now I'm gonna re-pretrain the model on old data and then train it on new one, fingers crossed, yayye never fucking give up.
 
+*** mistake ***
 * 13-7_resnext101_32x4d_v1_fold0_bgcoldsamp: same as 12-7_resnext101_32x4d_v1_fold0_bgcold, but trained on 20k samples, sampled according to dist. of current comp.'s dataset.
 *
 >> Forgot to update the lr to 1e-3, it is being trained on 1e-4 that's why it's so slow to plateau :( ek aadmi itni saari cheese kare to kare kaise?
-I've stopped training at epoch 31, will continue from there in the morning, gotta sleep.
 
-A new experiment can be this: pretrain on a balanced external data, then use that model on to the original data,  what's say?
+### 14 Jul
+
+I've stopped training at epoch 53, models' metrics are still improving (remember it was trained with 1e-4) but I want to check it's perf on test data right now.
+I think 1e-4 is a good lr, though model is slow to learn, I've never achived qwk:train/val as ~0.90/0.95 on old data.
+
+test predicting using 13-7_resnext101_32x4d_v1_fold0_bgcoldsamp is good, it would be wise to train on a mixed dataset with dist same as comp.'s dataset
+I MADE A MISTAKE: this above ^ model was trained on new data only with 20k sampled according to the actual distribution :facepalm:
+despite the mistake, for which I wasted so much time, a key takeaway is 1e-4 is better lr than 1e-3, I achieved 0.95 on val set
+
+*** renaming 13-7_resnext101_32x4d_v1_fold0_bgcoldsamp to bgc20ksamp, sorry
+
+LB: 0.63 for ckpt51.pth, th: 0.65, val qwk: 0.95, train qwk: 0.90
+
+** BUG **: the 20k images were sampled with replace=True, so the val set was not disjoint to train set :( :(
+
+*** mistake over ***
+
+Things to check, just before starting the model training:
+
+* train_df_name
+* model_name
+* fold and total fold (for val %)
+* npy_folder_name for dataloader's __getitem__() function
+* are you resampling images?
 
 
+* 14_7-resnext101_32x4d_v1_fold0_bgcoldsamp/: training on 8k images sampled from old data, sampled acc to dist of current data., replace=False
+
+
+
+
+# Questions:
+
+* A new experiment can be this: pretrain on a balanced external data, then use that model on to the original data,  what's say?
 
 # TODO:
 
