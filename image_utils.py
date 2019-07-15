@@ -10,6 +10,7 @@ def load_image(path, size):
 
 
 def load_ben_color(path, size, sigmaX=10, crop=False):
+    '''if crop=True: center crop retina'''
     image = cv2.imread(path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     if crop:

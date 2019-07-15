@@ -29,21 +29,21 @@ date = "%s-%s" % (now.day, now.month)
 class Trainer(object):
     def __init__(self):
         #remark = open("remark.txt", "r").read()
-        remark = "Using model pretrained on 8k sampled old data images"
+        remark = "Pretraining resnextv0 model on sampled old data with 256 img size"
         self.fold = 0
-        self.total_folds = 6
+        self.total_folds = 7
         self.class_weights = None #[1, 1, 1, 1, 1]
-        self.model_name = "resnext101_32x4d_v1"
+        self.model_name = "resnext101_32x4d_v0"
         #self.model_name = "se_resnet50_v0"
         #self.model_name = "densenet121"
-        ext_text = "bgcpos"
+        ext_text = "bgcpold256"
         self.num_samples = None #5000
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
-        self.resume = True
-        self.pretrained = False
-        self.pretrained_path = "weights/14-7_resnext101_32x4d_v1_fold0_bgcoldsamp/ckpt27.pth"
-        self.train_df_name = "train.csv"
-        #train_df_name = "train_all.csv"
+        self.resume = False
+        self.pretrained = True
+        self.pretrained_path = "weights/15-7_resnext101_32x4d_v0_fold0_bgcold256/ckpt30.pth"
+        #self.train_df_name = "train.csv"
+        self.train_df_name = "train12.csv"
         #self.train_df_name = "train_old.csv"
         #data_folder = 'external_data'
         self.num_workers = 8
@@ -53,7 +53,7 @@ class Trainer(object):
         self.base_lr = self.top_lr * 0.001
         # self.base_lr = None
         self.momentum = 0.95
-        self.size = 224
+        self.size = 256
         self.mean = (0.485, 0.456, 0.406)
         self.std = (0.229, 0.224, 0.225)
         # mean = (0.5, 0.5, 0.5)
@@ -177,6 +177,7 @@ class Trainer(object):
         total_images = len(dataloader)
         for iteration, batch in enumerate(dataloader):
             fnames, images, targets = batch
+            #pdb.set_trace()
             self.optimizer.zero_grad()
             loss, outputs = self.forward(images, targets)
             if phase == "train":
@@ -201,12 +202,15 @@ class Trainer(object):
         for epoch in range(self.start_epoch, self.num_epochs):
             t_epoch_start = time.time()
             if self.base_lr:
-                if epoch and epoch <= 7:  # in self.epoch_2_lr.keys():
-                    self.base_lr = self.base_lr * 2  # self.epoch_2_lr[epoch]
-                    if epoch == 7:
-                        self.base_lr = self.top_lr
+                #if epoch and epoch <= 7:  # in self.epoch_2_lr.keys():
+                if epoch == 10:
+                    self.base_lr = self.top_lr
+                    #pdb.set_trace()
                     self.optimizer = adjust_lr(self.base_lr, self.optimizer)
-                    self.log("Updating base_lr to %s" % self.base_lr)
+                    #self.base_lr = self.base_lr * 2  # self.epoch_2_lr[epoch]
+                    #if epoch == 7:
+                    #    self.base_lr = self.top_lr
+                    #self.log("Updating base_lr to %s" % self.base_lr)
 
             self.iterate(epoch, "train")
             state = {

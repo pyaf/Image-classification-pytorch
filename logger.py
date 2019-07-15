@@ -23,7 +23,6 @@ def log_overall(folder_name, phase, log_folder, metrics):
     save_folder: place where to log tb files
     metrics: (list) metrics to log
     """
-    print(f"logging overall stats for phase: {phase}")
     cms = {}
     cmfiles = glob(os.path.join(folder_name, "logs/*%s*.obj" % phase))
     for i in range(len(cmfiles)):
@@ -40,7 +39,7 @@ def log_overall(folder_name, phase, log_folder, metrics):
         log_all(metric_name, overall_stats[metric], logger)
 
 
-def log_class_stats(folder_name, phase, class_name, log_folder, metrics):
+def log_class_stats(folder_name, phase, log_folder, metrics):
     """
     Stats of each class plotted under each phase
     folder_name: path of the folder where model weights/logs were stored,
@@ -48,23 +47,23 @@ def log_class_stats(folder_name, phase, class_name, log_folder, metrics):
     save_folder: place where to log tb files
     metrics: (list) metrics to log
     """
-    print(f"logging class stats for phase: {phase} | class: {class_name}")
-
+    #pdb.set_trace()
     cms = {}
     cmfiles = glob(os.path.join(folder_name, "logs/*%s*.obj" % phase))
     for i in range(len(cmfiles)):
         cms[f"cm{i}"] = ConfusionMatrix(
             file=open(os.path.join(folder_name, f"logs/cm{phase}_{i}.obj"), "r")
         )
-    logger = Logger(os.path.join(log_folder, phase, str(class_name)))
-    class_stats = {x: [] for x in metrics}
-    for i in range(len(cmfiles)):
+    for class_name in range(5):
+        logger = Logger(os.path.join(log_folder, phase, str(class_name)))
+        class_stats = {x: [] for x in metrics}
+        for i in range(len(cmfiles)):
+            for metric in metrics:
+                value = cms["cm%d" % i].class_stat[metric][str(class_name)]
+                class_stats[metric].append(value if value is not "None" else 0)
         for metric in metrics:
-            value = cms["cm%d" % i].class_stat[metric][class_name]
-            class_stats[metric].append(value if value is not "None" else 0)
-    for metric in metrics:
-        metric_name = "class " + metric
-        log_all(metric_name, class_stats[metric], logger)
+            metric_name = "class " + metric
+            log_all(metric_name, class_stats[metric], logger)
 
 
 if __name__ == "__main__":
@@ -101,9 +100,8 @@ if __name__ == "__main__":
     class_metrics = ["TPR", "TNR", "PPV", "NPV", "FNR", "FPR", "ACC", "F1", "AUC"]
     print()
     print(f"Logging class metrics: {class_metrics}")
-    for phase in ["train", "val"]:
-        for class_name in range(5):
-            log_class_stats(folder_name, phase, class_name, log_folder, class_metrics)
+    log_class_stats(folder_name, "train", log_folder, class_metrics)
+    log_class_stats(folder_name, "val", log_folder, class_metrics)
 
     # #### NOTES:
     # * If curve goes to zero, suddenly, they that's a 0 replaced in place of None value

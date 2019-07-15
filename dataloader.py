@@ -57,7 +57,7 @@ def get_transforms(phase, size, mean, std):
     if phase == "train":
         list_transforms.extend(
             [
-                # albumentations.Rotate(limit=360, p=0.5),
+                albumentations.Rotate(limit=180, p=0.5),
                 albumentations.Transpose(p=0.5),
                 albumentations.Flip(p=0.5),
                 albumentations.RandomScale(scale_limit=0.1),
@@ -145,7 +145,7 @@ def provider(
     duplicates = df.iloc[dup_indices]
     all_dups = np.array(list(bad_indices) + list(dup_indices))
     df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
-    ''' line 161 also commented out'''
+    ''' line 163 also commented out'''
 
     #print('num_samples:', num_samples)
     if num_samples: # [4]
@@ -191,14 +191,14 @@ if __name__ == "__main__":
     mean = (0.5, 0.5, 0.5)
     std = (0.5, 0.5, 0.5)
 
-    size = 224
+    size = 256
 
     root = os.path.dirname(__file__)  # data folder
     data_folder = "data"
     # train_df_name = 'train.csv'
-    train_df_name = "train_all.csv"
-    num_samples = 5000
-    class_weights = [1, 1, 1, 1, 1]
+    train_df_name = "train_old.csv"
+    num_samples = None #5000
+    class_weights = None #[1, 1, 1, 1, 1]
     batch_size = 1
     # data_folder = 'external_data'
     images_folder = os.path.join(root, data_folder, "train_images/")  #

@@ -2,27 +2,20 @@
 
 # ADPOS diabetic retina
 
-# Observations:
+# Models on training:
 
-1. I used 96x96 image size with Resnet101 on 5Jul model, results were not good. Gotta increase the input image size
-2. 143 Images in the training set have duplicates (compared with hashes), out of those 79 have duplicates with different diagnosis label. Test set has 8 duplicates.
-3. If GPU utilization is ~98% you can't help it, it's not the CPU which is the bottelneck here.
-4. As I'm removing only bad ones from dataset, and there are still many duplicates in the there, so it is possible that those duplicates are distributed in train-val set, make sure all those duplicates are either in val set or train set!!!!!!!!!!!!!!!!!!!
-5. So, now after that we are choosing the threshold by get_best_threshold function, the predictions are coming out to be in [1, 1, 1, 0, 0] manner like no 0 and then 1, no gap in between! I don't know how! you won't find any output to be [1, 1, 0, 1, 0] or like something similar.
-6. The val qwk is better than train qwk in the qwk plot, because val qwk is threshold optimized, and train qwk uses 0.5
 
-# NOTES:
+### 8 Jul
 
-1. Previous competition data: https://www.kaggle.com/tanlikesmath/diabetic-retinopathy-resized
-2. Model training slow? (GPU utilization low?), speed up the dataloader, the __getitem__() is the culprit, too much preprocessing before transformation? save the damn thing in npy files bro --> 95% + utilization of GPU
-3.
-
-8 Jul: Tried with different class weights, augmentation techniques, bran's preprocessing of gray images, removing the bad training examples (duplicates with conflicting diagnosises), tried resnext, resnet, densenet, its variants, nothing worked. the model did improve a lot on train/val sets but failed to generalize on test set. Today I also changed models from Cross-entropy to BCE loss per output neuron.
+Tried with different class weights, augmentation techniques, bran's preprocessing of gray images, removing the bad training examples (duplicates with conflicting diagnosises), tried resnext, resnet, densenet, its variants, nothing worked. the model did improve a lot on train/val sets but failed to generalize on test set. Today I also changed models from Cross-entropy to BCE loss per output neuron.
 Target: 3 = [1, 1, 1, 0, 0]; prediction: [1, 1, 0, 0, 1] => 1
 Worked good on train/val but failed on the test set :(
 I also increased the val set from 10% to 20% this time.
 
-9 Jul: 12 midnight, I think it’s more about the data and the hyper-parameters than the model, just select a model, say resnext101_32x4d (it has the highest score so far) go for hyper-paramerter tuning and try to understand what’s going wrong instead of wildly trying to do random experiments leading to disinterest in the problem.
+
+### 9 Jul
+
+12 midnight, I think it’s more about the data and the hyper-parameters than the model, just select a model, say resnext101_32x4d (it has the highest score so far) go for hyper-paramerter tuning and try to understand what’s going wrong instead of wildly trying to do random experiments leading to disinterest in the problem.
 
 I’ve created new npy dataset data/npy_gray/ with only imread, BGR2GRAY, resize, reshape, repeat, save. Have put the model on training.
 I need an excel sheet with all performance metrics for each model which I’m training.
@@ -36,46 +29,19 @@ didn't help!
 
 
 
-9-7_densenet121_fold0_rgb_ext: Training the model on external data, class weights to 1, 1.5, 1, 1.5, 1.5, total folds =10
+`9-7_densenet121_fold0_rgb_ext`: Training the model on external data, class weights to 1, 1.5, 1, 1.5, 1.5, total folds =10
 
-
-
-# Files informations:
-
-* data/bad_train_indices.npy: list of indices in the train.csv which have a duplicate in the training data and that duplicate has a different diagnosis. We don't want our model to train on these images.
-* data/duplicates.npy: list of lists containing id_code's of duplicates in train.csv, i.e., all duplicates in train.csv
-* data/dups_with_same_diagnosis.npy: list of indices in train.csv which belong to images which have duplicates in train_images and their diagnosis is same
-* data/duplicate_test_ids: buggy, it has hashes of duplicate test images, gotta fix it
-* data/train_images/npy * files are images after cv2.read, BGR2GRAY, resize (224), addWeighted gaussian blur, reshape, repeat, save
-* data/train_images/npy_rgb * files are images after cv2.read, BGR2RGB, resize (224), save
-* data/train_images/npy_bengrahm : files images, preprocesses according to ben grahm's preprocessing technique, read, bgr2gray, resize, addweighted, reshape, repeat, img size = 224
-* data/train_images/npy_bengrahm_color : all data (internal + external) using bengrahm's color method, no cropping of retina, only 224 resizing
-* data/train_all.csv: contains train df of all data (internal and external), train.csv of external appended to train.csv of internal data, so bad indices still hold correct, I gotta checkout for duplicates in external data also
-* data/train_old.csv: contains id_code and diagnosis of external data only
-*
-
-# Extra remarks shortcut/keywords
-
-* bengrahmscolor: bengramhms color images on orginal data only
-* bgcold: bengrahms color images on old data only
-* bgpreold: bengrahms color images, model pre-trained on old data
-* bgc20ksamp: 20k images sampled from org dataset accord to its distribution.
-* bgcoldsamp: same as above, with sampled data, according to the dist of org data
-* bgcpos: using ben grahms color images, with model *p*retrained on *o*ld data *s*ampled acc to dist of present data.
-
-
-# Models on training:
 
 ### 9 Jul
 
-9 Jul: weights/9-7_densenet121_fold0_rbg to be trained on npy_rgb with class weights [1, 1.5, 1, 1.5, 1.5] with best threshold on val set being saved with each checkpoint. *The submission.py* needs to be modified accordingly. Gotta remove the best_thresshold function from there.
+9 Jul: `weights/9-7_densenet121_fold0_rbg` to be trained on npy_rgb with class weights [1, 1.5, 1, 1.5, 1.5] with best threshold on val set being saved with each checkpoint. *The submission.py* needs to be modified accordingly. Gotta remove the best_thresshold function from there.
 
-* weights/9-7_densenet121_fold0_rbg_ext: same as above, trained on npy_rgb of external dataset, the one from previouss competition, was performing poorly on original train set, total_folds=10
+* `weights/9-7_densenet121_fold0_rbg_ext` : same as above, trained on npy_rgb of external dataset, the one from previouss competition, was performing poorly on original train set, total_folds=10
 
 ### 10 Jul
 
-* 10 Jul: weights/10-7_densenet121_fold0_rgb: trained with val set sanctity on original dataset, total_folds = 5: LB: 0.66
-* 10 Jul: weights/10-7_densenet121_fold0_rgb_cw1: with classweights 1, 1.3, 1, 1.3, 1, as the previous model is getting biased towards class 4,
+* 10 Jul: `weights/10-7_densenet121_fold0_rgb` : trained with val set sanctity on original dataset, total_folds = 5: LB: 0.66
+* 10 Jul: `weights/10-7_densenet121_fold0_rgb_cw1` : with classweights 1, 1.3, 1, 1.3, 1, as the previous model is getting biased towards class 4,
 
 FUCK! the sampler was None all the while!!!!!!!!!!!
 moved class weights to Trainer class, if class_weights is None, the shuffle will be True, else there there will be weighted sampler.
@@ -84,8 +50,8 @@ retraining the cw1 model, will check in teh morning, also submit the latest test
 
 So, I made the submissions. model.pth (at epoch 43) has 0.667, ckpt30.pth : 0.65, ckpt20.pth 0.65
 
-* 10 Jul: weights/10-7_densenet121_fold0_bengrahms: without rotate, with transpose, with ben grahms' preprocessing, submissions.py modified accordingly: LB: 0.625
-* 10 Jul: weights/10-7_densenet121_fold0_bengrahmscolor: same as above, with color of bengrahms method
+* 10 Jul: `weights/10-7_densenet121_fold0_bengrahms` : without rotate, with transpose, with ben grahms' preprocessing, submissions.py modified accordingly: LB: 0.625
+* 10 Jul: `weights/10-7_densenet121_fold0_bengrahmscolor` : same as above, with color of bengrahms method
 
 I'm color with bengrahms for the external data also, will be saving the npy files in data/train_images/npy_bengrahm_color
 GO for RESNEXT101 models
@@ -101,11 +67,11 @@ So looks like the change in the val qwk (a lil bit 0.02) is because of stochasti
 10:43PM: Now on the best model will be saved on the basis of validation qwk score instead of val loss.
 new files created, with all data : external + competition one  check the files section of this log
 
-* 10 Jul: weights/10-7_densenet121_fold0_bengrahmscolorall: training on all data npy (data/train_images/npy_bengrahm_color and data/train_all.csv) with equal class weights with Transpose, Flip, and Random Scale: LB: 0.63
+* 10 Jul: `weights/10-7_densenet121_fold0_bengrahmscolorall` : training on all data npy (data/train_images/npy_bengrahm_color and data/train_all.csv) with equal class weights with Transpose, Flip, and Random Scale: LB: 0.63
 
 ### 11 Jul
 
-* 11 Jul: weights/11-7_resnext101_32xd_fold0_bengrahmscolorall: same as above with resnext101 model, batch size reduced to 16, class weights [1, 1.2, 1, 1.2, 1.2]
+* 11 Jul: `weights/11-7_resnext101_32xd_fold0_bengrahmscolorall` : same as above with resnext101 model, batch size reduced to 16, class weights [1, 1.2, 1, 1.2, 1.2]
 
 I gotta continue from my best performing model, I've to develop on top of it from now on. I've already wasted a lot of time in random hit and trial experiments
 OKAY, LISTEN:
@@ -158,11 +124,11 @@ The public test set has a totally different distribution as compared to train se
 1. What about pre-training the model on previous year's dataset and then training on the current one
 2. using cropped version of the dataset
 
-* weights/12-7_resnext101_32x4d_v0_fold0_bgcold: follows points 1. of above
+* `weights/12-7_resnext101_32x4d_v0_fold0_bgcold`: follows points 1. of above
 
 I've added a new version of resnext101: resnext101_32x4d_v1, replacing the AdaptiveAvgPool2d with AdaptiveConcatPool2d which concats the output of AdaptiveAvgPool2d and AdaptiveMaxPool2d, apparently it performs better: check [here](https://docs.fast.ai/layers.html#AdaptiveConcatPool2d).
 
-* weights/12-7_resnext101_32x4d_v1_fold0_bgcold: same as v0, only diff: AdaptiveConcatPool2d used instead of AdaptiveAvgPool2d, with Lin(4096), Lin(2048) Lin(5)
+* `weights/12-7_resnext101_32x4d_v1_fold0_bgcold` : same as v0, only diff: AdaptiveConcatPool2d used instead of AdaptiveAvgPool2d, with Lin(4096), Lin(2048) Lin(5)
 
 
 after 4 hours of experimentations: it turns out that it's kinda same.
@@ -181,7 +147,7 @@ I've been playing with densenet keras starter kernel on kaggle, key takeaways ar
 So, now I've resnext101_32x4d_v0/1 pretrained on old data, gotta use them as basemodels to train on org data.
 
 
-* 13-7_resnext101_32x4d_v1_fold0_bgpreold: training on bgcolor with lr 1e-5, starting with model pretrained on bgcolor old data (weights/12-7_resnext101_32x4d_v1_fold0_bgcold/ckpt16.pth), val set best thresholding has been set to 0.5. total_folds = 7 (val set: ~15%), model being saved according to best loss, qwk is unstable metric to save upon. I won't be training it for long, can't afford overfitting. >> So, I submitted ckpt26.pth with threshold optimised with best performing public submission.csv: LB: 0.687 The model is getting biased towards class 0
+* `13-7_resnext101_32x4d_v1_fold0_bgpreold` : training on bgcolor with lr 1e-5, starting with model pretrained on bgcolor old data (weights/12-7_resnext101_32x4d_v1_fold0_bgcold/ckpt16.pth), val set best thresholding has been set to 0.5. total_folds = 7 (val set: ~15%), model being saved according to best loss, qwk is unstable metric to save upon. I won't be training it for long, can't afford overfitting. >> So, I submitted ckpt26.pth with threshold optimised with best performing public submission.csv: LB: 0.687 The model is getting biased towards class 0
 
 The distribution of old data is different than present data, we can't just add them up and train a model based on that, so now I'm gonna sample out data from old data such that it resembles the original data distribution
 
@@ -193,7 +159,7 @@ As it can be seen, old data is heavily biased towards class 0, the reason for my
 So, now I'm gonna re-pretrain the model on old data and then train it on new one, fingers crossed, yayye never fucking give up.
 
 *** mistake ***
-* 13-7_resnext101_32x4d_v1_fold0_bgcoldsamp: same as 12-7_resnext101_32x4d_v1_fold0_bgcold, but trained on 20k samples, sampled according to dist. of current comp.'s dataset.
+* `13-7_resnext101_32x4d_v1_fold0_bgcoldsamp`: same as 12-7_resnext101_32x4d_v1_fold0_bgcold, but trained on 20k samples, sampled according to dist. of current comp.'s dataset.
 *
 >> Forgot to update the lr to 1e-3, it is being trained on 1e-4 that's why it's so slow to plateau :( ek aadmi itni saari cheese kare to kare kaise?
 
@@ -215,19 +181,10 @@ and 1e-5 if painfully slow. use 1e-4
 
 *** mistake over ***
 
-Things to check, just before starting the model training:
-
-* train_df_name
-* model_name
-* fold and total fold (for val %)
-* npy_folder_name for dataloader's __getitem__() function
-* are you resampling images?
-
-
-* 14_7-resnext101_32x4d_v1_fold0_bgcoldsamp/: training on 8k images sampled from old data, sampled acc to dist of current data., replace=False, top_lr=1e-4
+* `14_7-resnext101_32x4d_v1_fold0_bgcoldsamp`: training on 8k images sampled from old data, sampled acc to dist of current data., replace=False, top_lr=1e-4
 epoch 23: val loss > train loss but the val loss is still decreasing. choosing ckpt27, comparing this with the model trained on whole old data: this one has comparable qwk scores, but bad acc and loss.
 
-* 14_7-resnext101_32x4d_v1_fold0_bgcpos: starting with previous models ckpt27.pth, total_folds=6, training on bgc of current data. val loss > train loss at ckpt 12., submitted ckpt15.pth with optimised kappa (wrt submission.csv): LB: 0.71
+* `14_7-resnext101_32x4d_v1_fold0_bgcpos` : starting with previous models ckpt27.pth, total_folds=6, training on bgc of current data. val loss > train loss at ckpt 12., submitted ckpt15.pth with optimised kappa (wrt submission.csv): LB: 0.71
 
 The LB scores are generated on a private test set, so those public submission.csvs are not that useful, they don't represent the true picture..
 
@@ -237,6 +194,34 @@ ckpt13: val set optimised thresholds: [0.5091, 0.4916, 0.5216, 0.4965, 0.4971]: 
 ckpt13: test submission optimised thres:  [0.44824953, 0.65033665, 0.54202567, 0.40581288, 0.47455201]: (array([0, 1, 2, 3, 4]), array([ 338,  168, 1103,  255,   64])): LB: 0.717
 
 I have no idea what so ever.
+
+Got few papers:
+
+Automated Detection of Diabetic Retinopathy using Deep Learning: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5961805/
+Grader Variability and the Importance of Reference Standards for Evaluating Machine Learning Models for Diabetic Retinopathy: https://www.aaojournal.org/article/S0161-6420(17)32698-2/fulltext
+
+Got `messidor` dataset, 1200 images with improved image quality and reliable labels,
+`npy_bengrahm_color`: now has *256x256* sized images from all three categories of datasets.
+
+category 1: competition dataset, png images ~3.3k
+category 2: old competition dataset, jpeg images ~ 33k
+category 3: messidor dataset, tif images: 1.2k
+
+`15-7_resnext101_32x4d_v0_fold0_bgcold256`: Will be pretraining a model on sampled cat 2 dataset, with 256 img size, resnext_v0. (not v1), total_folds=7,
+Will be training a model pretrained on cat 2 dataset, on cat 1 and 3 combined dataset with img_size: 256
+takeaway: 1e-4 for pretraing is too high, retraining with 3e-5.
+
+### 15 Jul
+
+Stopped previous training, cropping the retina in the images and centering the images using `load_ben_color_cropped` [prepare_npy.ipynb], training the previous model with cropped old images (tol=7): At epoch 28: val qwk ~= train qwk: 0.80, choosing ckpt32: train/val qwk: 0.84/0.82 >>>>>> mistake <<<<<<< Forgot to change `size` variable in `Trainer` :(, retraining with 256 image size doesn't have much affect on the plots though. Choosing ckpt
+
+
+`15-7_resnext101_32x4d_v0_fold0_bgcpold256`: total_folds=6, train12.csv i.e., together with messidor dataset, starting with `weights/15-7_resnext101_32x4d_v0_fold0_bgcold256/ckpt30.pth`, with random rotate (180 degrees)
+ep 28: acc: .77/.80, qwk: .87/.89, selecting ckpt21 and 31 for kernel submission with their val best threshold. LB: 0.75 and 0.73 respectively :)
+
+
+
+
 
 # Questions:
 
@@ -260,3 +245,60 @@ I have no idea what so ever.
 * test.py with tta=False, takes about 2 mins for first predictions, about 16 seconds for subsequent predictions, boi now you know what pin_memory=True does.
 * for tta you don't have to pass image from each augmentation and then take the average, one other approach is to predict multiple times and take average and as the augmentationss are random, you get whachyouwantmyboi.
 * loc for pd series and iloc for pd df.
+
+
+
+# Things to check, just before starting the model training:
+
+* train_df_name
+* model_name
+* fold and total fold (for val %)
+* npy_folder_name for dataloader's __getitem__() function
+* are you resampling images?
+
+# Observations:
+
+1. I used 96x96 image size with Resnet101 on 5Jul model, results were not good. Gotta increase the input image size
+2. 143 Images in the training set have duplicates (compared with hashes), out of those 79 have duplicates with different diagnosis label. Test set has 8 duplicates.
+3. If GPU utilization is ~98% you can't help it, it's not the CPU which is the bottelneck here.
+4. As I'm removing only bad ones from dataset, and there are still many duplicates in the there, so it is possible that those duplicates are distributed in train-val set, make sure all those duplicates are either in val set or train set!!!!!!!!!!!!!!!!!!!
+5. So, now after that we are choosing the threshold by get_best_threshold function, the predictions are coming out to be in [1, 1, 1, 0, 0] manner like no 0 and then 1, no gap in between! I don't know how! you won't find any output to be [1, 1, 0, 1, 0] or like something similar.
+6. The val qwk is better than train qwk in the qwk plot, because val qwk is threshold optimized, and train qwk uses 0.5
+
+# NOTES:
+
+1. Previous competition data: https://www.kaggle.com/tanlikesmath/diabetic-retinopathy-resized
+2. Model training slow? (GPU utilization low?), speed up the dataloader, the __getitem__() is the culprit, too much preprocessing before transformation? save the damn thing in npy files bro --> 95% + utilization of GPU
+3.
+
+
+
+# Files informations:
+
+* data/bad_train_indices.npy: list of indices in the train.csv which have a duplicate in the training data and that duplicate has a different diagnosis. We don't want our model to train on these images.
+* data/duplicates.npy: list of lists containing id_code's of duplicates in train.csv, i.e., all duplicates in train.csv
+* data/dups_with_same_diagnosis.npy: list of indices in train.csv which belong to images which have duplicates in train_images and their diagnosis is same
+* data/duplicate_test_ids: buggy, it has hashes of duplicate test images, gotta fix it
+* data/train_images/npy * files are images after cv2.read, BGR2GRAY, resize (224), addWeighted gaussian blur, reshape, repeat, save
+* data/train_images/npy_rgb * files are images after cv2.read, BGR2RGB, resize (224), save
+* data/train_images/npy_bengrahm : files images, preprocesses according to ben grahm's preprocessing technique, read, bgr2gray, resize, addweighted, reshape, repeat, img size = 224
+* data/train_images/npy_bengrahm_color : all data (internal + external) using bengrahm's color method, no cropping of retina, only 224 resizing
+* data/train_all.csv: contains train df of all data (internal and external), train.csv of external appended to train.csv of internal data, so bad indices still hold correct, I gotta checkout for duplicates in external data also
+* data/train_old.csv: contains id_code and diagnosis of external data only
+* data/train12.csv: train.csv and train_messidor.csv combined, i.e., category 1 and category 2 dataset labels combined
+* data/train_meta.csv: train images shapes and related information
+* data/test_meta.csv: test images' shapes and related information, though I need to write shape extraction functions in the inference scripts also as kernel is run on hidden test data.
+
+
+# remarks shortcut/keywords
+
+* bengrahmscolor: bengramhms color images on orginal data only
+* bgcold: bengrahms color images on old data only
+* bgpreold: bengrahms color images, model pre-trained on old data
+* bgc20ksamp: 20k images sampled from org dataset accord to its distribution.
+* bgcoldsamp: same as above, with sampled data, according to the dist of org data
+* bgcpos: using ben grahms color images, with model *p*retrained on *o*ld data *s*ampled acc to dist of present data.
+* bgcold256: trained on old data with ben grahm color image size 256
+* bgcpold256: using model pretrained on bgcold256, with image size 256
+
+
