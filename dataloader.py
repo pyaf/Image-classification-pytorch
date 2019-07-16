@@ -34,7 +34,7 @@ class ImageDataset(Dataset):
         self.fnames = self.df["id_code"].values
         self.labels = self.df["diagnosis"].values.astype("int64")
         self.num_classes = len(np.unique(self.labels))
-        self.labels = to_multi_label(self.labels, self.num_classes)  # [1]
+        # self.labels = to_multi_label(self.labels, self.num_classes)  # [1]
         # self.labels = np.eye(self.num_classes)[self.labels]
         self.transform = get_transforms(phase, size, mean, std)
 
@@ -47,7 +47,7 @@ class ImageDataset(Dataset):
         return fname, image, label
 
     def __len__(self):
-        # return 100
+        #return 100
         return len(self.df)
 
 def get_transforms(phase, size, mean, std):
@@ -138,13 +138,13 @@ def provider(
     df = pd.read_csv(df_path)
     HOME = os.path.abspath(os.path.dirname(__file__))
 
-    bad_indices = np.load(os.path.join(HOME, "data/bad_train_indices.npy"))
-    dup_indices = np.load(
-        os.path.join(HOME, "data/dups_with_same_diagnosis.npy")
-    )  # [3]
-    duplicates = df.iloc[dup_indices]
-    all_dups = np.array(list(bad_indices) + list(dup_indices))
-    df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
+    #bad_indices = np.load(os.path.join(HOME, "data/bad_train_indices.npy"))
+    #dup_indices = np.load(
+    #    os.path.join(HOME, "data/dups_with_same_diagnosis.npy")
+    #)  # [3]
+    #duplicates = df.iloc[dup_indices]
+    #all_dups = np.array(list(bad_indices) + list(dup_indices))
+    #df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
     ''' line 163 also commented out'''
 
     #print('num_samples:', num_samples)
@@ -152,15 +152,15 @@ def provider(
         df = df.iloc[:num_samples]
 
     ''' to be used only with old data training '''
-    #df = resampled(df)
-    #print(f'sampled df shape: {df.shape}')
-    #print('data dist:\n',  df['diagnosis'].value_counts(normalize=True))
+    df = resampled(df)
+    print(f'sampled df shape: {df.shape}')
+    print('data dist:\n',  df['diagnosis'].value_counts(normalize=True))
 
     kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
     train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
     train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
 
-    train_df = train_df.append(duplicates, ignore_index=True)  # add dups, not bad ones
+    #train_df = train_df.append(duplicates, ignore_index=True)  # add dups, not bad ones
 
     df = train_df if phase == "train" else val_df
 
@@ -196,7 +196,7 @@ if __name__ == "__main__":
     root = os.path.dirname(__file__)  # data folder
     data_folder = "data"
     # train_df_name = 'train.csv'
-    train_df_name = "train_old.csv"
+    train_df_name = "train12.csv"
     num_samples = None #5000
     class_weights = None #[1, 1, 1, 1, 1]
     batch_size = 1

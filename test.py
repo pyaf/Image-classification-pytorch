@@ -18,7 +18,7 @@ import torch.utils.data as data
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.metrics import cohen_kappa_score
 from models import Model, get_model
-from utils import get_preds, mkdir
+from utils import *
 from image_utils import *
 from submission import get_best_threshold
 
@@ -89,11 +89,11 @@ def get_predictions(model, testset, tta):
     for i, batch in enumerate(tqdm(testset)):
         if tta:
             for images in batch:  # images.shape [n, 3, 96, 96] where n is num of 1+tta
-                preds = torch.sigmoid(model(images.to(device))) # [n, num_classes]
+                preds = model(images.to(device)) # [n, num_classes]
                 predictions.append(preds.mean(dim=0).detach().tolist())
         else:
             preds = model(batch[:, 0].to(device))
-            preds = torch.sigmoid(preds).detach().tolist() #[1]
+            preds = preds.detach().tolist() #[1]
             predictions.extend(preds)
 
     return np.array(predictions)
@@ -126,15 +126,15 @@ if __name__ == "__main__":
         sample_submission_path = "data/train.csv"
 
     tta = 4 # number of augs in tta
-    start_epoch = 8
-    end_epoch = 40
+    start_epoch = 23
+    end_epoch = 30
 
     root = f"data/{predict_on}_images/"
     size = 256
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
     use_cuda = True
-    num_classes = 5
+    num_classes = 1
     num_workers = 4
     batch_size = 8
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -176,6 +176,10 @@ if __name__ == "__main__":
         best_thresholds = state["best_thresholds"]
         print(f"Best thresholds: {best_thresholds}")
         preds = get_predictions(model, testset, tta)
+
+        pred_labels = predict(preds, best_thresholds)
+        print(np.unique(pred_labels, return_counts=True))
+
         mat_to_save = [preds, best_thresholds]
         np.save(os.path.join(npy_folder, f"{predict_on}_ckpt{epoch}.npy"), mat_to_save)
         print("Predictions saved!")

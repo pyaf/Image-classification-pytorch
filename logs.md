@@ -217,9 +217,29 @@ Stopped previous training, cropping the retina in the images and centering the i
 
 
 `15-7_resnext101_32x4d_v0_fold0_bgcpold256`: total_folds=6, train12.csv i.e., together with messidor dataset, starting with `weights/15-7_resnext101_32x4d_v0_fold0_bgcold256/ckpt30.pth`, with random rotate (180 degrees)
-ep 28: acc: .77/.80, qwk: .87/.89, selecting ckpt21 and 31 for kernel submission with their val best threshold. LB: 0.75 and 0.73 respectively :)
+ep 28: acc: .77/.80, qwk: .87/.89, selecting ckpt21 and 31 for kernel submission with their val best threshold. Remember, all submissions are done with tta.
 
+ckpt: LB, val qwk at optimized coeffs
+21: 0.743, 0.8805, (array([0, 1, 2, 3, 4]), array([ 233,  248, 1102,  276,   69]))
+24: 0.753, 0.8777,
+25: 0.765, 0.8927 with random scale tta
+26: 0.764, 0.8874, (array([0, 1, 2, 3, 4]), array([ 324,  187, 1114,  245,   58]))
+26 submitted again with randomscale in tta: LLB: 0.767
+28: 0.745, 0.8895, (array([0, 1, 2, 3, 4]), array([ 233,  248, 1102,  276,   69]))
+31: 0.751, 0.8953, (array([0, 1, 2, 3, 4]), array([ 356,  228, 1062,  217,   65]))
 
+ckpt25 submitted with randomscale in tta. LB: 0.765
+
+** key takeaway is tta can slightly improve model performances
+
+There's a lot of variation in the thresholds for each ckpt, as well as the total pred counts on the test data, How to select the best ckpt?
+
+Added image meta data as late fusion to the keras model, train acc is 96%, val acc is 76%, model.predict is predict perfect [1, 0, 0, 0, 0], and val qwk is zero
+
+* `16_7-resnext101_32x4d_v0_fold0_bgc256reg`: Regression mode, classes=1, MSELoss, initial thresholds = [0.5, 1.5, 2.5, 3.5], boi this thing is quick, CPU: 70% continuously, GPU 98%, 1:30 sec per epoch, why were the previous models low on CPU usage?
+
+For MSELoss the targets should be flattened ([n, 1]), spent a lot of time figuring that out. model wasn't training otherwise.
+ckpt 21: qwk : .85/.89
 
 
 
@@ -300,5 +320,7 @@ ep 28: acc: .77/.80, qwk: .87/.89, selecting ckpt21 and 31 for kernel submission
 * bgcpos: using ben grahms color images, with model *p*retrained on *o*ld data *s*ampled acc to dist of present data.
 * bgcold256: trained on old data with ben grahm color image size 256
 * bgcpold256: using model pretrained on bgcold256, with image size 256
+* bgcc256reg: ben grahm cropped images, size = 256, regression model
+* bgccold256reg: ben grahm cropped images, size = 256, regression model, training on sampled old data
 
 

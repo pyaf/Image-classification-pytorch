@@ -120,10 +120,11 @@ def get_model(model_name, out_features=1, pretrained="imagenet"):
 if __name__ == "__main__":
     # model_name = "se_resnext50_32x4d_v2"
     # model_name = "nasnetamobile"
-    model_name = "resnext101_32x4d"
-    classes = 5
+    model_name = "resnext101_32x4d_v0"
+    classes = 1
+    size = 256
     model = Model(model_name, classes, "imagenet")
-    image = torch.Tensor(1, 3, 224, 224)
+    image = torch.Tensor(3, 3, size, size) # BN layers need more than one inputs, running mean and std
     # image = torch.Tensor(1, 3, 112, 112)
     # image = torch.Tensor(1, 3, 96, 96)
 

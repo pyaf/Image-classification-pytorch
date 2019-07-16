@@ -52,9 +52,25 @@ def get_preds(arr, num_cls):
     return np.clip(np.where(mask.any(1), mask.argmax(1), num_cls) - 1, 0, num_cls - 1)
 
 
-def compute_score_inv(threshold, predictions, targets, num_classes):
-    predictions = predictions > threshold
-    predictions = get_preds(predictions, num_classes)
+def predict(X, coef):
+    # [0.15, 2.4, ..] -> [0, 2, ..]
+    X_p = np.copy(X)
+    for i, pred in enumerate(X_p):
+        if pred < coef[0]:
+            X_p[i] = 0
+        elif pred >= coef[0] and pred < coef[1]:
+            X_p[i] = 1
+        elif pred >= coef[1] and pred < coef[2]:
+            X_p[i] = 2
+        elif pred >= coef[2] and pred < coef[3]:
+            X_p[i] = 3
+        else:
+            X_p[i] = 4
+    return X_p.astype('int')
+
+
+def compute_score_inv(thresholds, predictions, targets):
+    predictions = predict(predictions, thresholds)
     score = cohen_kappa_score(predictions, targets, weights="quadratic")
     return 1 - score
 
@@ -66,29 +82,33 @@ class Meter:
         self.phase = phase
         self.epoch = epoch
         self.save_folder = os.path.join(save_folder, "logs")
-        self.num_classes = 5  # hard coded, yeah, I know
-        self.best_thresholds = np.array([0.5] * 5) # initial guess
+        #self.num_classes = 5  # hard coded, yeah, I know
+        self.best_thresholds = [0.5, 1.5, 2.5, 3.5] # initial guess
 
     def update(self, targets, outputs):
         '''targets, outputs are detached CUDA tensors'''
         # get multi-label to single label
-        targets = torch.sum(targets, 1) - 1
+        #targets = torch.sum(targets, 1) - 1 # no multilabel target in regression
         targets = targets.type(torch.LongTensor)
+        outputs = outputs.flatten() # [n, 1] -> [n]
         # outputs = torch.sum((outputs > 0.5), 1) - 1
 
-        # pdb.set_trace()
+        #pdb.set_trace()
         self.targets.extend(targets.tolist())
         self.predictions.extend(outputs.tolist())
         # self.predictions.extend(torch.argmax(outputs, dim=1).tolist()) #[2]
 
     def get_best_thresholds(self):
+        if self.phase == "train":
+            return self.best_thresholds
+
         """Used in the val phase of iteration, see [4]"""
         self.predictions = np.array(self.predictions)
         self.targets = np.array(self.targets)
         simplex = scipy.optimize.minimize(
             compute_score_inv,
             self.best_thresholds,
-            args=(self.predictions, self.targets, self.num_classes),
+            args=(self.predictions, self.targets),
             method="nelder-mead",
         )
         self.best_thresholds = simplex["x"]
@@ -96,9 +116,10 @@ class Meter:
         return self.best_thresholds
 
     def get_cm(self):
+        #pdb.set_trace()
         thresholds = self.best_thresholds
-        self.predictions = np.array(self.predictions) > thresholds  # [5]
-        self.predictions = get_preds(self.predictions, self.num_classes)
+
+        self.predictions = predict(self.predictions, self.best_thresholds)
         cm = ConfusionMatrix(self.targets, self.predictions)
         qwk = cohen_kappa_score(self.targets, self.predictions, weights="quadratic")
         return cm, qwk

@@ -29,26 +29,26 @@ date = "%s-%s" % (now.day, now.month)
 class Trainer(object):
     def __init__(self):
         #remark = open("remark.txt", "r").read()
-        remark = "Pretraining resnextv0 model on sampled old data with 256 img size"
+        remark = ""
         self.fold = 0
         self.total_folds = 7
         self.class_weights = None #[1, 1, 1, 1, 1]
         self.model_name = "resnext101_32x4d_v0"
         #self.model_name = "se_resnet50_v0"
         #self.model_name = "densenet121"
-        ext_text = "bgcpold256"
+        ext_text = "bgccold256reg"
         self.num_samples = None #5000
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
         self.resume = False
-        self.pretrained = True
+        self.pretrained = False
         self.pretrained_path = "weights/15-7_resnext101_32x4d_v0_fold0_bgcold256/ckpt30.pth"
         #self.train_df_name = "train.csv"
-        self.train_df_name = "train12.csv"
-        #self.train_df_name = "train_old.csv"
+        #self.train_df_name = "train12.csv"
+        self.train_df_name = "train_old.csv"
         #data_folder = 'external_data'
         self.num_workers = 8
         self.batch_size = {"train": 16, "val": 8}
-        self.num_classes = 5
+        self.num_classes = 1
         self.top_lr = 1e-4
         self.base_lr = self.top_lr * 0.001
         # self.base_lr = None
@@ -78,7 +78,8 @@ class Trainer(object):
         torch.set_default_tensor_type(self.tensor_type)
         self.net = Model(self.model_name, self.num_classes)
         #self.criterion = torch.nn.CrossEntropyLoss()
-        self.criterion = torch.nn.BCELoss() # requires sigmoid pred inputs
+        #self.criterion = torch.nn.BCELoss() # requires sigmoid pred inputs
+        self.criterion = torch.nn.MSELoss()
         # self.optimizer = optim.SGD(
         #            self.net.parameters(),
         #            lr=self.top_lr,
@@ -160,8 +161,9 @@ class Trainer(object):
         images = images.to(self.device)
         #targets = targets.type(torch.LongTensor).to(self.device) # [1]
         targets = targets.type(torch.FloatTensor).to(self.device)
+        targets = targets.view(-1, 1) # [n] -> [n, 1] V. imp for MSELoss
         outputs = self.net(images)
-        outputs = torch.sigmoid(outputs)
+        #outputs = torch.sigmoid(outputs) # no sigmoid for regression mode
         loss = self.criterion(outputs, targets)
         return loss, outputs.detach()
 
@@ -189,9 +191,7 @@ class Trainer(object):
             if iteration % 100 == 0:
                 iter_log(self.log, phase, epoch, iteration, total_iters, loss, start)
                 # break
-        best_thresholds = np.array([0.5] * 5)
-        if phase == "val":
-            best_thresholds = meter.get_best_thresholds()
+        best_thresholds = meter.get_best_thresholds()
         epoch_loss = running_loss / total_images
         qwk = epoch_log(self.log, self.tb, phase, epoch, epoch_loss, meter, start)
         torch.cuda.empty_cache()
@@ -203,7 +203,7 @@ class Trainer(object):
             t_epoch_start = time.time()
             if self.base_lr:
                 #if epoch and epoch <= 7:  # in self.epoch_2_lr.keys():
-                if epoch == 10:
+                if epoch == 5:
                     self.base_lr = self.top_lr
                     #pdb.set_trace()
                     self.optimizer = adjust_lr(self.base_lr, self.optimizer)
