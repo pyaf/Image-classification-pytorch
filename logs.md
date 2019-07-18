@@ -263,9 +263,18 @@ Each model.pth file is 2.3GB!, choosing ckpt 11, 17 based on highest val qwk, ck
 ckpt 4 is special, before this the model loss is kinda confined, after this val loss jumps high though val qwk keeps increasing. This one's preds are closest to .77 subs, choosing this.
 dataset name: 18resnext10132x16dbgcpold256reg
 
+Yahooooooooooooooooooo!!!!!!!!!!!!!!!!!!
+
+ckpt, qwk, LB, test preds
+ckpt
+ckpt 4, .89/.88, 0.785, (array([0, 1, 2, 3, 4]), array([ 299,  174, 1188,  207,   60]))
 
 Time to get started with EfficientNets
 * `18-7_efficientnet-b5_fold0_bgccold`: EfficientNet-b5 pretrained on imagenet, training on sampled old data, batch size 20/8 with amp (my god!! why wasn't I using it so far). lr = 1e-3
+Choosing ckpt19.pth acc: 0.65/0.66, loss:0.39/0.42, qwk: 0.85/0.85
+* `18-7_efficientnet-b5_fold0_bgccpold`:
+
+*Mistake* the model freezing code was not written for this model as well as the resnext101_32x16d model. (I used required_grad=False, instead of requires_grad -_-) Still the models trained well.
 
 
 # Questions and Ideas:
@@ -308,6 +317,7 @@ Time to get started with EfficientNets
 * npy_folder_name for dataloader's __getitem__() function
 * are you resampling images?
 * self.size, self.top_lr, self.std, self.mean -> insta trained weights used so be careful
+* self.ep2unfreeze
 *
 
 

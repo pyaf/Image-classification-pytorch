@@ -152,9 +152,9 @@ def provider(
     #    df = df.iloc[:num_samples]
 
     ''' to be used only with old data training '''
-    df = resampled(df)
-    print(f'sampled df shape: {df.shape}')
-    print('data dist:\n',  df['diagnosis'].value_counts(normalize=True))
+    #df = resampled(df)
+    #print(f'sampled df shape: {df.shape}')
+    #print('data dist:\n',  df['diagnosis'].value_counts(normalize=True))
 
     kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
     train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]

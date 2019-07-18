@@ -40,22 +40,22 @@ class Trainer(object):
         #self.model_name = "se_resnet50_v0"
         #self.model_name = "densenet121"
         self.model_name = "efficientnet-b5"
-        ext_text = "bgccold"
+        ext_text = "bgccpold"
         self.num_samples = None #5000
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
         self.resume = False
-        self.pretrained = False
-        self.pretrained_path = "weights/18-7_resnext101_32x16d_fold0_bgccold/ckpt8.pth"
+        self.pretrained = True
+        self.pretrained_path = "weights/18-7_efficientnet-b5_fold0_bgccold/ckpt19.pth"
         self.resume_path = os.path.join(HOME, self.folder, "ckpt4.pth")
         #self.train_df_name = "train.csv"
-        #self.train_df_name = "train12.csv"
-        self.train_df_name = "train_old.csv"
+        self.train_df_name = "train12.csv"
+        #self.train_df_name = "train_old.csv"
         #data_folder = 'external_data'
         self.num_workers = 8
         self.batch_size = {"train": 20, "val": 8}
         self.num_classes = 1
-        self.top_lr = 1e-3
-        self.ep2unfreeze = 3
+        self.top_lr = 1e-5
+        self.ep2unfreeze = 0
         self.num_epochs = 50
         #self.base_lr = self.top_lr * 0.001
         self.base_lr = None
@@ -222,7 +222,7 @@ class Trainer(object):
             t_epoch_start = time.time()
             if epoch == self.ep2unfreeze:
                 for params in self.net.parameters():
-                    params.required_grad = True
+                    params.requires_grad = True
                 #self.base_lr = self.top_lr
                 #self.optimizer = adjust_lr(self.base_lr, self.optimizer)
 

@@ -119,19 +119,26 @@ def resnext101_32x16d(out_features):
                 'resnext101_32x16d_wsl'
     )
     for params in model.parameters():
-        params.required_grad = False
+        params.requires_grad = False
 
     model.fc = nn.Linear(in_features=2048, out_features=out_features, bias=True)
+    # every new layer added, has requires_grad = True
 
     return model
 
-def efficientNet(name, out_features):
 
+def efficientNet(name, out_features):
     '''name like: `efficientnet-b5`
     [2]
     '''
 
     model = EfficientNet.from_pretrained(name, num_classes=out_features)
+
+    for params in model.parameters():
+        params.requires_grad = False
+
+    model._fc.requires_grad = True
+
     return model
 
 
@@ -147,9 +154,10 @@ if __name__ == "__main__":
     # model_name = "se_resnext50_32x4d_v2"
     # model_name = "nasnetamobile"
     #model_name = "resnext101_32x4d_v0"
+    model_name = "efficientnet-b5"
     classes = 1
     size = 256
-    model = Model(model_name, classes, "imagenet")
+    model = get_model(model_name, classes, "imagenet")
     image = torch.Tensor(3, 3, size, size) # BN layers need more than one inputs, running mean and std
     # image = torch.Tensor(1, 3, 112, 112)
     # image = torch.Tensor(1, 3, 96, 96)
