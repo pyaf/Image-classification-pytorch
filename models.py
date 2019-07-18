@@ -2,7 +2,7 @@ import pdb
 import torch
 from torch import nn
 import pretrainedmodels
-
+from efficientnet_pytorch import EfficientNet
 
 class Flatten(nn.Module):
     def forward(self, x):
@@ -125,11 +125,21 @@ def resnext101_32x16d(out_features):
 
     return model
 
+def efficientNet(name, out_features):
+
+    '''name like: `efficientnet-b5`
+    [2]
+    '''
+
+    model = EfficientNet.from_pretrained(name, num_classes=out_features)
+    return model
 
 
 def get_model(model_name, out_features=1, pretrained="imagenet"):
     if model_name == "resnext101_32x16d":
         return resnext101_32x16d(out_features)
+    elif model_name.startswith("efficientnet"):
+        return efficientNet(model_name, out_features)
     return Model(model_name, out_features, pretrained)
 
 
@@ -152,6 +162,7 @@ if __name__ == "__main__":
 ''' footnotes
 
 [1]: model.avgpool is already AdapativeAvgPool2d, and model's forward method handles flatten and stuff. So here I'm just adding a trainable the last fc layer, after few epochs the model's all layers will be set required_grad=True
+Apart from that this model is trained on instagram images, remove imagenet mean and std, only gotta divide by 255, so mean=0,std=1
 
-
+[2]: efficientnet models are trained on imagenet, so make sure mean and std are of imagenet.
 '''

@@ -147,14 +147,14 @@ def provider(
     #df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
     #''' line 163 also commented out'''
 
-    ##print('num_samples:', num_samples)
+    #print('num_samples:', num_samples)
     #if num_samples: # [4]
     #    df = df.iloc[:num_samples]
 
     ''' to be used only with old data training '''
-    #df = resampled(df)
-    #print(f'sampled df shape: {df.shape}')
-    #print('data dist:\n',  df['diagnosis'].value_counts(normalize=True))
+    df = resampled(df)
+    print(f'sampled df shape: {df.shape}')
+    print('data dist:\n',  df['diagnosis'].value_counts(normalize=True))
 
     kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
     train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]

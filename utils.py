@@ -237,6 +237,8 @@ def save_hyperparameters(trainer, remark):
         f"start_epoch: {trainer.start_epoch}\n" + \
         f"batchsize: {trainer.batch_size}\n" + \
         f"augmentations: {augmentations}\n" + \
+        f"criterion: {trainer.criterion}\n" + \
+        f"optimizer: {trainer.optimizer}\n" + \
         f"remark: {remark}\n"
 
     with open(hp_file, "a") as f:

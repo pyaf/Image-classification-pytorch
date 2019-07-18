@@ -126,13 +126,15 @@ if __name__ == "__main__":
         sample_submission_path = "data/train.csv"
 
     tta = 4 # number of augs in tta
-    start_epoch = 25
-    end_epoch = 45
+    start_epoch = 19
+    end_epoch = 20
 
     root = f"data/{predict_on}_images/"
     size = 256
-    mean = (0.485, 0.456, 0.406)
-    std = (0.229, 0.224, 0.225)
+    #mean = (0.485, 0.456, 0.406)
+    #std = (0.229, 0.224, 0.225)
+    mean = (0, 0, 0)
+    std = (1, 1, 1)
     use_cuda = True
     num_classes = 1
     num_workers = 4
@@ -170,7 +172,6 @@ if __name__ == "__main__":
     for epoch in range(start_epoch, end_epoch+1):
         print(f"Using ckpt{epoch}.pth")
         ckpt_path = os.path.join(model_folder_path, "ckpt%d.pth" % epoch)
-        sub_path = ckpt_path.replace(".pth", "%s.csv" % predict_on) # /ckpt10train.csv
         state = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
         model.load_state_dict(state["state_dict"])
         best_thresholds = state["best_thresholds"]

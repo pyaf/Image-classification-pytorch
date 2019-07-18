@@ -256,7 +256,16 @@ ckpt22: when I mistakenly submitted it with ckpt25's best thresholds I got 0.763
 * `17-7_resnext101_32x16d_v0_fold0_bgccold`: insta trained resnext 16d model. Training on sampled old data. Heck!! forgot to remove imagenet mean and std, argghh
 * `18-7_resnext101_32x16d_v0_fold0_bgccold`: same as before with mean=0, std=1, lr=1e-5
 It's taking a lot of time, setting up Comp Unit's GPU cluster.
-* `18-7_resnext101_32x16d_v0_fold0_bgccpold`: Fine-tuning previous model on new data with lr=1e-6
+
+* `18-7_resnext101_32x16d_v0_fold0_bgccpold`: Fine-tuning previous model on new data with lr=1e-6, model trained without removing duplicates (they are not much, still model is learning sth out of nothing)
+All ckpts from 4 to 20 look promising!,
+Each model.pth file is 2.3GB!, choosing ckpt 11, 17 based on highest val qwk, ckpt 12 based on lowest val loss.
+ckpt 4 is special, before this the model loss is kinda confined, after this val loss jumps high though val qwk keeps increasing. This one's preds are closest to .77 subs, choosing this.
+dataset name: 18resnext10132x16dbgcpold256reg
+
+
+Time to get started with EfficientNets
+* `18-7_efficientnet-b5_fold0_bgccold`: EfficientNet-b5 pretrained on imagenet, training on sampled old data, batch size 20/8 with amp (my god!! why wasn't I using it so far). lr = 1e-3
 
 
 # Questions and Ideas:
@@ -265,8 +274,8 @@ It's taking a lot of time, setting up Comp Unit's GPU cluster.
 * What about analysing the images in training data where the model is failing, the ones which are good enough but model completely fails to recognize, we can give them more weights in the data sampler, what other techniques can be used?
 
 * Train on old, use new data as validation set!!
-* What about using Adam?
-
+* What about using Adam?, started using it in Resnext101_32x16d models
+* People have had successes with 320 image size.
 
 
 # TODO:
@@ -351,3 +360,11 @@ It's taking a lot of time, setting up Comp Unit's GPU cluster.
 * bgccold256reg: ben grahm cropped images, size = 256, regression model, training on sampled old data
 * bgc3t12v: with bgc, with cat 3 as train set, cat 1 and 2 as validation set
 
+
+
+# Experts speak
+
+Insightful comments by poeple
+
+* Do we need to use the same image size as used by pretrained models.
+if you are using almost any pre-trained model the size does not have to match the size model has been trained with. It would only be useful for imagenet like images where different size would mean different objects scale, but for completely different domain like this competition, I don't see any benefit in sticking to the original image size.

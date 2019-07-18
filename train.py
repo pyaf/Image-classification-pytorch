@@ -3,6 +3,8 @@ import pdb
 import time
 from datetime import datetime
 import _thread
+
+from apex import amp
 import torch
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
@@ -29,39 +31,40 @@ date = "%s-%s" % (now.day, now.month)
 class Trainer(object):
     def __init__(self):
         #remark = open("remark.txt", "r").read()
-        remark = "All of old data as train set, train12 as val set"
+        remark = "training on old sampled data only"
         self.fold = 0
         self.total_folds = 7
         self.class_weights = None #[1, 1, 1, 1, 1]
         #self.model_name = "resnext101_32x4d_v0"
-        self.model_name = "resnext101_32x16d"
+        #self.model_name = "resnext101_32x16d"
         #self.model_name = "se_resnet50_v0"
         #self.model_name = "densenet121"
-        ext_text = "bgccpold"
+        self.model_name = "efficientnet-b5"
+        ext_text = "bgccold"
         self.num_samples = None #5000
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
-        self.resume = True
-        self.pretrained = True
+        self.resume = False
+        self.pretrained = False
         self.pretrained_path = "weights/18-7_resnext101_32x16d_fold0_bgccold/ckpt8.pth"
         self.resume_path = os.path.join(HOME, self.folder, "ckpt4.pth")
         #self.train_df_name = "train.csv"
-        self.train_df_name = "train12.csv"
-        #self.train_df_name = "train_old.csv"
+        #self.train_df_name = "train12.csv"
+        self.train_df_name = "train_old.csv"
         #data_folder = 'external_data'
         self.num_workers = 8
-        self.batch_size = {"train": 4, "val": 2}
+        self.batch_size = {"train": 20, "val": 8}
         self.num_classes = 1
-        self.top_lr = 1e-6
-        self.ep2unfreeze = 0
+        self.top_lr = 1e-3
+        self.ep2unfreeze = 3
         self.num_epochs = 50
         #self.base_lr = self.top_lr * 0.001
         self.base_lr = None
         self.momentum = 0.95
         self.size = 256
-        #self.mean = (0.485, 0.456, 0.406)
-        #self.std = (0.229, 0.224, 0.225)
-        self.mean = (0, 0, 0)
-        self.std = (1, 1, 1)
+        self.mean = (0.485, 0.456, 0.406)
+        self.std = (0.229, 0.224, 0.225)
+        #self.mean = (0, 0, 0)
+        #self.std = (1, 1, 1)
         # self.epoch_2_lr = {1: 2, 3: 5, 5: 2, 6:5, 7:2, 9:5} # factor to scale base_lr
         # self.weight_decay = 5e-4
         self.best_qwk = 0
@@ -106,6 +109,14 @@ class Trainer(object):
         else:
             self.initialize_net()
         self.net = self.net.to(self.device)
+
+        # Mixed precision training
+        self.net, self.optimizer = amp.initialize(
+                self.net,
+                self.optimizer,
+                opt_level="O1",
+                verbosity=0
+        )
 
         if self.cuda: cudnn.benchmark = True
         self.tb = {
@@ -189,7 +200,9 @@ class Trainer(object):
             self.optimizer.zero_grad()
             loss, outputs = self.forward(images, targets)
             if phase == "train":
-                loss.backward()
+                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+                #loss.backward()
                 self.optimizer.step()
             running_loss += loss.item()
             # pdb.set_trace()
