@@ -126,8 +126,8 @@ if __name__ == "__main__":
         sample_submission_path = "data/train.csv"
 
     tta = 4 # number of augs in tta
-    start_epoch = 23
-    end_epoch = 30
+    start_epoch = 25
+    end_epoch = 45
 
     root = f"data/{predict_on}_images/"
     size = 256
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     use_cuda = True
     num_classes = 1
     num_workers = 4
-    batch_size = 8
+    batch_size = 16
     device = torch.device("cuda" if use_cuda else "cpu")
     if use_cuda:
         cudnn.benchmark = True

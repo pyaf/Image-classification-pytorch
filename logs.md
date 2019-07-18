@@ -204,8 +204,8 @@ Got `messidor` dataset, 1200 images with improved image quality and reliable lab
 `npy_bengrahm_color`: now has *256x256* sized images from all three categories of datasets.
 
 category 1: competition dataset, png images ~3.3k
-category 2: old competition dataset, jpeg images ~ 33k
-category 3: messidor dataset, tif images: 1.2k
+category 2: messidor dataset, tif images: 1.2k
+category 3: old competition dataset, jpeg images ~ 33k
 
 `15-7_resnext101_32x4d_v0_fold0_bgcold256`: Will be pretraining a model on sampled cat 2 dataset, with 256 img size, resnext_v0. (not v1), total_folds=7,
 Will be training a model pretrained on cat 2 dataset, on cat 1 and 3 combined dataset with img_size: 256
@@ -239,13 +239,35 @@ Added image meta data as late fusion to the keras model, train acc is 96%, val a
 * `16_7-resnext101_32x4d_v0_fold0_bgc256reg`: Regression mode, classes=1, MSELoss, initial thresholds = [0.5, 1.5, 2.5, 3.5], boi this thing is quick, CPU: 70% continuously, GPU 98%, 1:30 sec per epoch, why were the previous models low on CPU usage?
 
 For MSELoss the targets should be flattened ([n, 1]), spent a lot of time figuring that out. model wasn't training otherwise.
-ckpt 21: qwk : .85/.89
+ckpt 21: qwk : .85/.89, the predictions don't look promising.
+
+* `16_7-resnext101_32x4d_v0_fold0_bdccold256reg`: pretraining resnext on sampled 256 sized ben grahm center cropped old data images in regression mode. ckpt28.pth looks optimum.
+
+* `17_7-resnext101_32x4d_v0_fold0_bgcpcold256reg`: started with pretrained weights of previous model (ckpt28.pth), trained on train12.csv, ckpt22, ckpt 24, 25 look good acc to val best threshold and the predictions. Generated test predictions.
+
+ckpt22: when I mistakenly submitted it with ckpt25's best thresholds I got 0.763, when submitted with it's own best threshold: I got 0.73
+
+*Tip* : Don't follow train qwk, it's initial best thresholds [0.5, 1.5,..] which are used.
 
 
+* `17_7-resnext101_32x4d_v0_fold0_bgcpcold256regft`: same as previous model, started with 1e-6 top lr, experimenting with fine tuning. Testing ckpt21: LB: 0.72
+* `17_7-resnext101_32x4d_v0_fold0_bgc3t12v`: Old data as training, new data as validation till epoch 17, then fine tuned on new data only, with 1e-6, the test predictions are not promising.
 
-# Questions:
+* `17-7_resnext101_32x16d_v0_fold0_bgccold`: insta trained resnext 16d model. Training on sampled old data. Heck!! forgot to remove imagenet mean and std, argghh
+* `18-7_resnext101_32x16d_v0_fold0_bgccold`: same as before with mean=0, std=1, lr=1e-5
+It's taking a lot of time, setting up Comp Unit's GPU cluster.
+* `18-7_resnext101_32x16d_v0_fold0_bgccpold`: Fine-tuning previous model on new data with lr=1e-6
+
+
+# Questions and Ideas:
 
 * A new experiment can be this: pretrain on a balanced external data, then use that model on to the original data,  what's say?
+* What about analysing the images in training data where the model is failing, the ones which are good enough but model completely fails to recognize, we can give them more weights in the data sampler, what other techniques can be used?
+
+* Train on old, use new data as validation set!!
+* What about using Adam?
+
+
 
 # TODO:
 
@@ -265,6 +287,7 @@ ckpt 21: qwk : .85/.89
 * test.py with tta=False, takes about 2 mins for first predictions, about 16 seconds for subsequent predictions, boi now you know what pin_memory=True does.
 * for tta you don't have to pass image from each augmentation and then take the average, one other approach is to predict multiple times and take average and as the augmentationss are random, you get whachyouwantmyboi.
 * loc for pd series and iloc for pd df.
+* The resume code had a bug, if you'd resume you'll start with base_lr = top_lr * 0.001, and if the start epoch was greater than say 10, it will remain the same.
 
 
 
@@ -275,6 +298,10 @@ ckpt 21: qwk : .85/.89
 * fold and total fold (for val %)
 * npy_folder_name for dataloader's __getitem__() function
 * are you resampling images?
+* self.size, self.top_lr, self.std, self.mean -> insta trained weights used so be careful
+*
+
+
 
 # Observations:
 
@@ -322,5 +349,5 @@ ckpt 21: qwk : .85/.89
 * bgcpold256: using model pretrained on bgcold256, with image size 256
 * bgcc256reg: ben grahm cropped images, size = 256, regression model
 * bgccold256reg: ben grahm cropped images, size = 256, regression model, training on sampled old data
-
+* bgc3t12v: with bgc, with cat 3 as train set, cat 1 and 2 as validation set
 

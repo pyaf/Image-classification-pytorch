@@ -85,7 +85,7 @@ def get_transforms(phase, size, mean, std):
 
             albumentations.Normalize(mean=mean, std=std, p=1),
             albumentations.Resize(size, size),  # because RandomScale is applied
-            AT.ToTensor(),
+            AT.ToTensor(normalize=None), # [6]
         ]
     )
     return albumentations.Compose(list_transforms)
@@ -145,22 +145,25 @@ def provider(
     #duplicates = df.iloc[dup_indices]
     #all_dups = np.array(list(bad_indices) + list(dup_indices))
     #df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
-    ''' line 163 also commented out'''
+    #''' line 163 also commented out'''
 
-    #print('num_samples:', num_samples)
-    if num_samples: # [4]
-        df = df.iloc[:num_samples]
+    ##print('num_samples:', num_samples)
+    #if num_samples: # [4]
+    #    df = df.iloc[:num_samples]
 
     ''' to be used only with old data training '''
-    df = resampled(df)
-    print(f'sampled df shape: {df.shape}')
-    print('data dist:\n',  df['diagnosis'].value_counts(normalize=True))
+    #df = resampled(df)
+    #print(f'sampled df shape: {df.shape}')
+    #print('data dist:\n',  df['diagnosis'].value_counts(normalize=True))
 
     kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
     train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
     train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
 
     #train_df = train_df.append(duplicates, ignore_index=True)  # add dups, not bad ones
+
+    #train_df = pd.read_csv('data/train_old.csv')
+    #val_df = pd.read_csv('data/train12.csv')
 
     df = train_df if phase == "train" else val_df
 
@@ -170,12 +173,13 @@ def provider(
     if phase == "train" and class_weights:
         datasampler = get_sampler(df, class_weights=class_weights)
     print('datasampler:', datasampler)
+
     dataloader = DataLoader(
         image_dataset,
         batch_size=batch_size,
         num_workers=num_workers,
         pin_memory=True,
-        shuffle=True if datasampler is None else False,
+        shuffle=False if datasampler else True,
         sampler=datasampler,
     )  # shuffle and sampler are mutually exclusive args
     return dataloader
@@ -238,4 +242,6 @@ https://github.com/btgraham/SparseConvNet/tree/kaggle_Diabetic_Retinopathy_compe
 [3]: bad_indices are those which have conflicting diagnosises, duplicates are those which have same duplicates, we shouldn't let them split in train and val set, gotta maintain the sanctity of val set
 [4]: used when the dataframe include external data and we want to sample limited number of those
 [5]: as replace=False,  total samples can be a finite number so that those many number of classes exist in the dataset, and as the count_dist is approx, not normalized to 1, 7800 is optimum, totaling to ~8100 samples
+
+[6]: albumentations.Normalize will divide by 255, subtract mean and divide by std. output dtype = float32. ToTensor converts to torch tensor and divides by 255 if input dtype is uint8.
 """

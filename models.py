@@ -105,7 +105,6 @@ class Model(nn.Module):
                 nn.Linear(in_features=2048, out_features=out_features, bias=True),
              )
 
-
     def forward(self, x):
         #pdb.set_trace()
         x = self.model.features(x)  # only backbone features
@@ -113,14 +112,31 @@ class Model(nn.Module):
         return x
 
 
+def resnext101_32x16d(out_features):
+    '''[1]'''
+    model = torch.hub.load(
+                'facebookresearch/WSL-Images',
+                'resnext101_32x16d_wsl'
+    )
+    for params in model.parameters():
+        params.required_grad = False
+
+    model.fc = nn.Linear(in_features=2048, out_features=out_features, bias=True)
+
+    return model
+
+
+
 def get_model(model_name, out_features=1, pretrained="imagenet"):
+    if model_name == "resnext101_32x16d":
+        return resnext101_32x16d(out_features)
     return Model(model_name, out_features, pretrained)
 
 
 if __name__ == "__main__":
     # model_name = "se_resnext50_32x4d_v2"
     # model_name = "nasnetamobile"
-    model_name = "resnext101_32x4d_v0"
+    #model_name = "resnext101_32x4d_v0"
     classes = 1
     size = 256
     model = Model(model_name, classes, "imagenet")
@@ -131,3 +147,11 @@ if __name__ == "__main__":
     output = model(image)
     print(output.shape)
     pdb.set_trace()
+
+
+''' footnotes
+
+[1]: model.avgpool is already AdapativeAvgPool2d, and model's forward method handles flatten and stuff. So here I'm just adding a trainable the last fc layer, after few epochs the model's all layers will be set required_grad=True
+
+
+'''

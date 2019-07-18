@@ -213,33 +213,38 @@ def save_hyperparameters(trainer, remark):
     time_now = datetime.now()
     augmentations = trainer.dataloaders['train'].dataset.transform.transforms
     # pdb.set_trace()
-    with open(hp_file, "a") as f:
-        f.write(f"Time: {time_now}\n")
-        f.write(f"model_name: {trainer.model_name}\n")
-        f.write(f"train_df_name: {trainer.train_df_name}\n")
-        f.write(f"images_folder: {trainer.images_folder}\n")
-        f.write(f"resume: {trainer.resume}\n")
-        f.write(f"pretrained: {trainer.pretrained}\n")
-        f.write(f"pretrained_path: {trainer.pretrained_path}\n")
-        f.write(f"folder: {trainer.folder}\n")
-        f.write(f"fold: {trainer.fold}\n")
-        f.write(f"total_folds: {trainer.total_folds}\n")
-        f.write(f"num_samples: {trainer.num_samples}\n")
-        f.write(f"sampling class weights: {trainer.class_weights}\n")
-        f.write(f"size: {trainer.size}\n")
-        f.write(f"top_lr: {trainer.top_lr}\n")
-        f.write(f"base_lr: {trainer.base_lr}\n")
-        f.write(f"num_workers: {trainer.num_workers}\n")
-        f.write(f"batchsize: {trainer.batch_size}\n")
-        f.write(f"momentum: {trainer.momentum}\n")
-        f.write(f"mean: {trainer.mean}\n")
-        f.write(f"std: {trainer.std}\n")
-        f.write(f"start_epoch: {trainer.start_epoch}\n")
-        f.write(f"batchsize: {trainer.batch_size}\n")
-        f.write(f"augmentations: {augmentations}\n")
-        f.write(f"remark: {remark}\n")
+    string_to_write =  \
+        f"Time: {time_now}\n" + \
+        f"model_name: {trainer.model_name}\n" + \
+        f"train_df_name: {trainer.train_df_name}\n" + \
+        f"images_folder: {trainer.images_folder}\n" + \
+        f"resume: {trainer.resume}\n" + \
+        f"pretrained: {trainer.pretrained}\n" + \
+        f"pretrained_path: {trainer.pretrained_path}\n" + \
+        f"folder: {trainer.folder}\n" + \
+        f"fold: {trainer.fold}\n" + \
+        f"total_folds: {trainer.total_folds}\n" + \
+        f"num_samples: {trainer.num_samples}\n" + \
+        f"sampling class weights: {trainer.class_weights}\n" + \
+        f"size: {trainer.size}\n" + \
+        f"top_lr: {trainer.top_lr}\n" + \
+        f"base_lr: {trainer.base_lr}\n" + \
+        f"num_workers: {trainer.num_workers}\n" + \
+        f"batchsize: {trainer.batch_size}\n" + \
+        f"momentum: {trainer.momentum}\n" + \
+        f"mean: {trainer.mean}\n" + \
+        f"std: {trainer.std}\n" + \
+        f"start_epoch: {trainer.start_epoch}\n" + \
+        f"batchsize: {trainer.batch_size}\n" + \
+        f"augmentations: {augmentations}\n" + \
+        f"remark: {remark}\n"
 
-    print(open(hp_file, "r").read())
+    with open(hp_file, "a") as f:
+        f.write(string_to_write)
+    print(string_to_write)
+
+
+
 
 """Footnotes:
 

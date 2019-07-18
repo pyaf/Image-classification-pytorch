@@ -29,41 +29,44 @@ date = "%s-%s" % (now.day, now.month)
 class Trainer(object):
     def __init__(self):
         #remark = open("remark.txt", "r").read()
-        remark = ""
+        remark = "All of old data as train set, train12 as val set"
         self.fold = 0
         self.total_folds = 7
         self.class_weights = None #[1, 1, 1, 1, 1]
-        self.model_name = "resnext101_32x4d_v0"
+        #self.model_name = "resnext101_32x4d_v0"
+        self.model_name = "resnext101_32x16d"
         #self.model_name = "se_resnet50_v0"
         #self.model_name = "densenet121"
-        ext_text = "bgccold256reg"
+        ext_text = "bgccpold"
         self.num_samples = None #5000
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
-        self.resume = False
-        self.pretrained = False
-        self.pretrained_path = "weights/15-7_resnext101_32x4d_v0_fold0_bgcold256/ckpt30.pth"
+        self.resume = True
+        self.pretrained = True
+        self.pretrained_path = "weights/18-7_resnext101_32x16d_fold0_bgccold/ckpt8.pth"
+        self.resume_path = os.path.join(HOME, self.folder, "ckpt4.pth")
         #self.train_df_name = "train.csv"
-        #self.train_df_name = "train12.csv"
-        self.train_df_name = "train_old.csv"
+        self.train_df_name = "train12.csv"
+        #self.train_df_name = "train_old.csv"
         #data_folder = 'external_data'
         self.num_workers = 8
-        self.batch_size = {"train": 16, "val": 8}
+        self.batch_size = {"train": 4, "val": 2}
         self.num_classes = 1
-        self.top_lr = 1e-4
-        self.base_lr = self.top_lr * 0.001
-        # self.base_lr = None
+        self.top_lr = 1e-6
+        self.ep2unfreeze = 0
+        self.num_epochs = 50
+        #self.base_lr = self.top_lr * 0.001
+        self.base_lr = None
         self.momentum = 0.95
         self.size = 256
-        self.mean = (0.485, 0.456, 0.406)
-        self.std = (0.229, 0.224, 0.225)
-        # mean = (0.5, 0.5, 0.5)
-        # std = (0.5, 0.5, 0.5)
+        #self.mean = (0.485, 0.456, 0.406)
+        #self.std = (0.229, 0.224, 0.225)
+        self.mean = (0, 0, 0)
+        self.std = (1, 1, 1)
         # self.epoch_2_lr = {1: 2, 3: 5, 5: 2, 6:5, 7:2, 9:5} # factor to scale base_lr
         # self.weight_decay = 5e-4
         self.best_qwk = 0
         self.best_loss = float("inf")
         self.start_epoch = 0
-        self.num_epochs = 100
         self.phases = ["train", "val"]
         self.cuda = torch.cuda.is_available()
         torch.set_num_threads(12)
@@ -76,26 +79,25 @@ class Trainer(object):
         self.ckpt_path = os.path.join(self.save_folder, "ckpt.pth")
         self.tensor_type = "torch%s.FloatTensor" % (".cuda" if self.cuda else "")
         torch.set_default_tensor_type(self.tensor_type)
-        self.net = Model(self.model_name, self.num_classes)
+        self.net = get_model(self.model_name, self.num_classes)
         #self.criterion = torch.nn.CrossEntropyLoss()
         #self.criterion = torch.nn.BCELoss() # requires sigmoid pred inputs
         self.criterion = torch.nn.MSELoss()
-        # self.optimizer = optim.SGD(
-        #            self.net.parameters(),
-        #            lr=self.top_lr,
-        #            momentum=self.momentum,
-        # )
-        self.optimizer = optim.SGD(
-            [
-                {"params": self.net.model.parameters()},
-                {"params": self.net.classifier.parameters(), "lr": self.top_lr},
-            ],
-            lr=self.base_lr if self.base_lr else self.top_lr,  # 1e-7#self.lr * 0.001,
-            momentum=self.momentum,
+        self.optimizer = optim.Adam(
+                   self.net.parameters(),
+                   lr=self.top_lr,
         )
+        #self.optimizer = optim.SGD(
+        #    [
+        #        {"params": self.net.model.parameters()},
+        #        {"params": self.net.classifier.parameters(), "lr": self.top_lr},
+        #    ],
+        #    lr=self.base_lr if self.base_lr else self.top_lr,  # 1e-7#self.lr * 0.001,
+        #    momentum=self.momentum,
+        #)
         # weight_decay=self.weight_decay)
         self.scheduler = ReduceLROnPlateau(
-            self.optimizer, mode="min", patience=2, verbose=True
+            self.optimizer, mode="min", patience=3, verbose=True
         )
         logger = logger_init(self.save_folder)
         self.log = logger.info
@@ -131,13 +133,12 @@ class Trainer(object):
         save_hyperparameters(self, remark)
 
     def load_state(self): # [4]
-        if self.pretrained:
+        if self.resume:
+            path = self.resume_path
+            self.log("Resuming training, loading {} ...".format(path))
+        elif self.pretrained:
             path = self.pretrained_path
             self.log("loading pretrained, {} ...".format(path))
-        elif self.resume:
-            path = self.ckpt_path
-            self.log("Resuming training, loading {} ...".format(path))
-
         state = torch.load(path, map_location=lambda storage, loc: storage)
         self.net.load_state_dict(state["state_dict"])
 
@@ -146,6 +147,10 @@ class Trainer(object):
             self.best_loss = state["best_loss"]
             self.best_qwk = state["best_qwk"]
             self.start_epoch = state["epoch"] + 1
+            if self.start_epoch > 5:
+                #self.base_lr = self.top_lr
+                #print(f"Base lr = Top lr = {self.top_lr}")
+                pass
 
         if self.cuda:
             for opt_state in self.optimizer.state.values():
@@ -158,6 +163,7 @@ class Trainer(object):
         pass
 
     def forward(self, images, targets):
+        #pdb.set_trace()
         images = images.to(self.device)
         #targets = targets.type(torch.LongTensor).to(self.device) # [1]
         targets = targets.type(torch.FloatTensor).to(self.device)
@@ -201,16 +207,11 @@ class Trainer(object):
         t0 = time.time()
         for epoch in range(self.start_epoch, self.num_epochs):
             t_epoch_start = time.time()
-            if self.base_lr:
-                #if epoch and epoch <= 7:  # in self.epoch_2_lr.keys():
-                if epoch == 5:
-                    self.base_lr = self.top_lr
-                    #pdb.set_trace()
-                    self.optimizer = adjust_lr(self.base_lr, self.optimizer)
-                    #self.base_lr = self.base_lr * 2  # self.epoch_2_lr[epoch]
-                    #if epoch == 7:
-                    #    self.base_lr = self.top_lr
-                    #self.log("Updating base_lr to %s" % self.base_lr)
+            if epoch == self.ep2unfreeze:
+                for params in self.net.parameters():
+                    params.required_grad = True
+                #self.base_lr = self.top_lr
+                #self.optimizer = adjust_lr(self.base_lr, self.optimizer)
 
             self.iterate(epoch, "train")
             state = {
