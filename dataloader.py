@@ -138,14 +138,16 @@ def provider(
     df = pd.read_csv(df_path)
     HOME = os.path.abspath(os.path.dirname(__file__))
 
-    #bad_indices = np.load(os.path.join(HOME, "data/bad_train_indices.npy"))
-    #dup_indices = np.load(
-    #    os.path.join(HOME, "data/dups_with_same_diagnosis.npy")
-    #)  # [3]
-    #duplicates = df.iloc[dup_indices]
-    #all_dups = np.array(list(bad_indices) + list(dup_indices))
-    #df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
-    #''' line 163 also commented out'''
+    bad_indices = np.load(os.path.join(HOME, "data/bad_train_indices.npy"))
+    dup_indices = np.load(
+        os.path.join(HOME, "data/dups_with_same_diagnosis.npy")
+    )  # [3]
+    duplicates = df.iloc[dup_indices]
+
+    all_dups = np.array(list(bad_indices) + list(dup_indices))
+    df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
+
+    #'''later appended also'''
 
     #print('num_samples:', num_samples)
     #if num_samples: # [4]
@@ -160,7 +162,7 @@ def provider(
     train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
     train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
 
-    #train_df = train_df.append(duplicates, ignore_index=True)  # add dups, not bad ones
+    train_df = train_df.append(duplicates, ignore_index=True)  # add all
 
     #train_df = pd.read_csv('data/train_old.csv')
     #val_df = pd.read_csv('data/train12.csv')

@@ -31,8 +31,8 @@ date = "%s-%s" % (now.day, now.month)
 class Trainer(object):
     def __init__(self):
         #remark = open("remark.txt", "r").read()
-        remark = "training on old sampled data only"
-        self.fold = 0
+        remark = "Fine tuning on new samples, fold 2"
+        self.fold = 2
         self.total_folds = 7
         self.class_weights = None #[1, 1, 1, 1, 1]
         #self.model_name = "resnext101_32x4d_v0"
@@ -41,6 +41,7 @@ class Trainer(object):
         #self.model_name = "densenet121"
         self.model_name = "efficientnet-b5"
         ext_text = "bgccpold"
+        date = "19-7"
         self.num_samples = None #5000
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
         self.resume = False
@@ -54,9 +55,9 @@ class Trainer(object):
         self.num_workers = 8
         self.batch_size = {"train": 20, "val": 8}
         self.num_classes = 1
-        self.top_lr = 1e-5
+        self.top_lr = 3e-5
         self.ep2unfreeze = 0
-        self.num_epochs = 50
+        self.num_epochs = 70
         #self.base_lr = self.top_lr * 0.001
         self.base_lr = None
         self.momentum = 0.95
@@ -218,7 +219,7 @@ class Trainer(object):
 
     def train(self):
         t0 = time.time()
-        for epoch in range(self.start_epoch, self.num_epochs):
+        for epoch in range(self.start_epoch, self.num_epochs+1):
             t_epoch_start = time.time()
             if epoch == self.ep2unfreeze:
                 for params in self.net.parameters():

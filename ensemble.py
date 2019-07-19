@@ -40,7 +40,7 @@ def get_parser():
     return parser
 
 
-class TestDataset(data.Dataset):
+class Dataset(data.Dataset):
     def __init__(self, root, df, size, mean, std, tta=4):
         self.root = root
         self.size = size
@@ -99,6 +99,18 @@ def get_predictions(model, testset, tta):
     return np.array(predictions)
 
 
+def get_load_model(model_name, ckpt_path, num_classes):
+    model = get_model(model_name, num_classes, pretrained=None)
+    state = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
+    epoch = state["epoch"]
+    model.load_state_dict(state["state_dict"])
+
+    best_thresholds = state["best_thresholds"]
+    model.to(device)
+    model.eval()
+    return model, best_thresholds
+
+
 def get_model_name_fold(model_folder_path):
     # example ckpt_path = weights/9-7_{modelname}_fold0_text/
     model_folder = model_folder_path.split("/")[1]  # 9-7_{modelname}_fold0_text
@@ -110,24 +122,25 @@ def get_model_name_fold(model_folder_path):
 
 if __name__ == "__main__":
     '''
-    Generates predictions on train/test set using the ckpts saved in the model folder path
-    and saves them in npy_folder in npy format which can be analyses later for different
-    thresholds
+    Uses a list of ckpts, predicts on whole train set, averages the predictions and finds optimized thresholds based on train qwk
     '''
-    parser = get_parser()
-    args = parser.parse_args()
-    model_folder_path = args.model_folder_path
-    predict_on = args.predict_on
-    model_name, fold = get_model_name_fold(model_folder_path)
+    #parser = get_parser()
+    #args = parser.parse_args()
+    #model_folder_path = args.model_folder_path
+    #predict_on = args.predict_on
+    #model_name, fold = get_model_name_fold(model_folder_path)
 
-    if predict_on == "test":
-        sample_submission_path = "data/sample_submission.csv"
-    else:
-        sample_submission_path = "data/train.csv"
+    model_name = "efficientnet-b5"
+    ckpt_path_list = [
+        "weights/18-7_efficientnet-b5_fold0_bgccpold/ckpt39.pth",
+        "weights/19-7_efficientnet-b5_fold1_bgccpold/ckpt10.pth",
+        "weights/19-7_efficientnet-b5_fold2_bgccpold/ckpt39.pth",
+        "weights/19-7_efficientnet-b5_fold3_bgccpold/ckpt39.pth"
+    ]
+
+    sample_submission_path = "data/train.csv"
 
     tta = 4 # number of augs in tta
-    start_epoch = 0
-    end_epoch = 20
 
     root = f"data/{predict_on}_images/"
     size = 256
@@ -147,43 +160,48 @@ if __name__ == "__main__":
         torch.set_default_tensor_type("torch.FloatTensor")
 
     df = pd.read_csv(sample_submission_path)
-    testset = DataLoader(
-        TestDataset(root, df, size, mean, std, tta),
+    dataset = DataLoader(
+        Dataset(root, df, size, mean, std, tta),
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True if use_cuda else False,
     )
 
-    model = get_model(model_name, num_classes, pretrained=None)
-    model.to(device)
-    model.eval()
+    # generate predictions using all models
+    all_predictions = []
+    for idx, ckpt in enumerate(ckpt_path_list):
+        print("model: %s" % ckpt)
+        model, val_best_th = get_load_model(model_name, ckpt, num_classes)
+        predictions = get_predictions(model, dataset, use_tta)
+        all_predictions.append(preds)
 
-    npy_folder = os.path.join(model_folder_path, "%s_npy" % predict_on)
-    mkdir(npy_folder)
+    predictions = np.mean(all_predictions, axis=0)
 
-    print(f"\nUsing model: {model_name} | fold: {fold}")
-    print(f"Predicting on: {predict_on} set")
-    print(f"Root: {root}")
-    print(f"Saving predictions at: {npy_folder}")
-    print(f"From epoch {start_epoch} to {end_epoch}")
-    print(f"Using tta: {tta}\n")
+    # optimize thresholds on training set
+    targets = df['diagnosis'].values
+    initial_thresholds = [0.5, 1.5, 2.5, 3.5]
+    simplex = scipy.optimize.minimize(
+        compute_score_inv,
+        initial_thresholds,
+        args=(predictions, targets),
+        method="nelder-mead",
+    )
+    best_thresholds = simplex["x"]
+    print("Best thresholds: %s" % self.best_thresholds)
 
-    for epoch in range(start_epoch, end_epoch+1):
-        print(f"Using ckpt{epoch}.pth")
-        ckpt_path = os.path.join(model_folder_path, "ckpt%d.pth" % epoch)
-        state = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
-        model.load_state_dict(state["state_dict"])
-        best_thresholds = state["best_thresholds"]
-        print(f"Best thresholds: {best_thresholds}")
-        preds = get_predictions(model, testset, tta)
+    # predictions using best_thresholds
+    preds = predict(predictions, best_thresholds)
 
-        pred_labels = predict(preds, best_thresholds)
-        print(np.unique(pred_labels, return_counts=True))
+    qwk = cohen_kappa_score(preds, targets, weights="quadratic")
+    print(f"Train qwk score: {qwk}")
 
-        mat_to_save = [preds, best_thresholds]
-        np.save(os.path.join(npy_folder, f"{predict_on}_ckpt{epoch}.npy"), mat_to_save)
-        print("Predictions saved!")
+    cm = ConfusionMatrix(targets, preds)
+    print(cm.print_normalized_matrix())
+
+    # for further analysis.
+    pdb.set_trace()
+
 
 
 '''

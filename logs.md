@@ -268,24 +268,72 @@ Yahooooooooooooooooooo!!!!!!!!!!!!!!!!!!
 ckpt, qwk, LB, test preds
 ckpt
 ckpt 4, .89/.88, 0.785, (array([0, 1, 2, 3, 4]), array([ 299,  174, 1188,  207,   60]))
+ckpt 5, , 0.875
+ckpt 7 Not submitted, the public test predictions are not promising.
+ckpt 11, 0.784
+ckpt 20, , 0.785
+
 
 Time to get started with EfficientNets
 * `18-7_efficientnet-b5_fold0_bgccold`: EfficientNet-b5 pretrained on imagenet, training on sampled old data, batch size 20/8 with amp (my god!! why wasn't I using it so far). lr = 1e-3
 Choosing ckpt19.pth acc: 0.65/0.66, loss:0.39/0.42, qwk: 0.85/0.85
 * `18-7_efficientnet-b5_fold0_bgccpold`:
+The curves keep improving, is there any leak in the train/val?
 
 *Mistake* the model freezing code was not written for this model as well as the resnext101_32x16d model. (I used required_grad=False, instead of requires_grad -_-) Still the models trained well.
+
+Submitting: ckpt 49, 30, 39
+
+ckpt 49, LB: 0.792 ohhhhhh boiiiiiiiii
+
+ckpt, qwk, LB, np.uniques
+ckpt 49, 0.898/0.8949, 0.792, (array([0, 1, 2, 3, 4]), array([ 340,  131, 1183,  223,   51]))
+ckpt 30, 0.890, 0.8959, 0.786, (array([0, 1, 2, 3, 4]), array([ 343,   59, 1262,  216,   48]))
+ckpt 39, 0.892/0.8940,, 0.796 ,(array([0, 1, 2, 3, 4]), array([ 341,  154, 1159,  222,   52]))
+
+val set qwk is not a good metric to choose submission from.
+
+EfficientNet kept on improving, though slowly, untill I stopped it at ep 50
+Holy Cow, why the f was I copy pasting best_thresholds to kaggle kernel when it was stored in model state -_-?
+
+*Ensembling ideas*
+
+* Select the ckpts, predict on training set, average the predictions, get optimized thresholds, predict on test set, average the predictions, use train set optimized thresholds. Implemented.
+
+efficientnet fold1 test predictions very unstable. predictions are bad. not choosing any in the ensemble. preds saved in npy_test
+
+*WARNING*
+As you are selecting models based on test pred count, and not the loss, chances are that you'll end up down on final leaderboard. This public test set may not be the correct dist. of private test data.
+
+Retraining fold1,2,3 all duplicates in train set only.
+
+fold1: Earlier I had added duplicates in the df (before train/val split), this time only good duplicates in train df, and mistakenly bad duplicates were not removed from teh df before train/val split, plot a little lower compared to previous one obviously because the previous model had train val leak.
+retraining: Without bad duplicates, duplicates in train set only, with lr 1e-4, (as 1e-5 is way to low, model takes 50 epochs to converge)
+The model plots are showing significant improvement compared to previous models.
+The lr was reduced to 1e-5 at ep 12, 1e-6 at ep 16, 1e-7 at ep 20
+
+submitted fold1, ckpt 10
+
+I think 1e-5 is way too high lr, testing 3e-5 for fold2
+
+meanwhile creating bengrahms color cropped 300 sized images at `data/train_images/bgcc300/`
+
 
 
 # Questions and Ideas:
 
 * A new experiment can be this: pretrain on a balanced external data, then use that model on to the original data,  what's say?
-* What about analysing the images in training data where the model is failing, the ones which are good enough but model completely fails to recognize, we can give them more weights in the data sampler, what other techniques can be used?
+* ** What about analysing the images in training data where the model is failing, the ones which are good enough but model completely fails to recognize, we can give them more weights in the data sampler, what other techniques can be used?
 
 * Train on old, use new data as validation set!!
 * What about using Adam?, started using it in Resnext101_32x16d models
 * People have had successes with 320 image size.
-
+* People are talking about resizing such that aspect ratio remains intact. Hmmm.
+* CV for resnext101_32x16d model
+* multilabel stratified cross validation.
+* go through this: https://www.kaggle.com/c/aptos2019-blindness-detection/discussion/97860#579277
+* https://www.kaggle.com/kosiew/rank-averaging-script
+* Good coders are participating in multiple competitions at a time.
 
 # TODO:
 
@@ -306,8 +354,8 @@ Choosing ckpt19.pth acc: 0.65/0.66, loss:0.39/0.42, qwk: 0.85/0.85
 * for tta you don't have to pass image from each augmentation and then take the average, one other approach is to predict multiple times and take average and as the augmentationss are random, you get whachyouwantmyboi.
 * loc for pd series and iloc for pd df.
 * The resume code had a bug, if you'd resume you'll start with base_lr = top_lr * 0.001, and if the start epoch was greater than say 10, it will remain the same.
-
-
+* The public test data is 15% of total test data and is used for public LB scoring. The private test set (85% of total) Will be used for private LB scoring.
+* Updated the dataset to a new version? Just reboot the kernel to reflect that update (no remove and add shit)
 
 # Things to check, just before starting the model training:
 
@@ -378,3 +426,29 @@ Insightful comments by poeple
 
 * Do we need to use the same image size as used by pretrained models.
 if you are using almost any pre-trained model the size does not have to match the size model has been trained with. It would only be useful for imagenet like images where different size would mean different objects scale, but for completely different domain like this competition, I don't see any benefit in sticking to the original image size.
+
+* Label smoothing:
+https://towardsdatascience.com/label-smoothing-making-model-robust-to-incorrect-labels-2fae037ffbd0
+
+ only pytorch not keras can make deterministic (training) results.
+
+A good ensemble contains high performing models which are less correlated., each fold val set should be unique.
+
+
+
+
+
+
+
+EXTRAS:
+
+EfficientNet params:
+  # (width_coefficient, depth_coefficient, resolution, dropout_rate)
+  'efficientnet-b0': (1.0, 1.0, 224, 0.2),
+  'efficientnet-b1': (1.0, 1.1, 240, 0.2),
+  'efficientnet-b2': (1.1, 1.2, 260, 0.3),
+  'efficientnet-b3': (1.2, 1.4, 300, 0.3),
+  'efficientnet-b4': (1.4, 1.8, 380, 0.4),
+  'efficientnet-b5': (1.6, 2.2, 456, 0.4),
+  'efficientnet-b6': (1.8, 2.6, 528, 0.5),
+  'efficientnet-b7': (2.0, 3.1, 600, 0.5),
