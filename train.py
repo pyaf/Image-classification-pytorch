@@ -31,37 +31,37 @@ date = "%s-%s" % (now.day, now.month)
 class Trainer(object):
     def __init__(self):
         #remark = open("remark.txt", "r").read()
-        remark = "Fine tuning on new samples, fold 2"
-        self.fold = 2
+        remark = "Pretraining on old data as train set, new as val, 300 imgsize, cw: 12122"
+        self.fold = 0
         self.total_folds = 7
-        self.class_weights = None #[1, 1, 1, 1, 1]
+        self.class_weights = [1, 2, 1, 2, 2]
         #self.model_name = "resnext101_32x4d_v0"
         #self.model_name = "resnext101_32x16d"
         #self.model_name = "se_resnet50_v0"
         #self.model_name = "densenet121"
-        self.model_name = "efficientnet-b5"
-        ext_text = "bgccpold"
-        date = "19-7"
+        self.model_name = "efficientnet-b3"
+        ext_text = "bgcco300"
+        #date = "19-7"
         self.num_samples = None #5000
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
         self.resume = False
-        self.pretrained = True
+        self.pretrained = False
         self.pretrained_path = "weights/18-7_efficientnet-b5_fold0_bgccold/ckpt19.pth"
         self.resume_path = os.path.join(HOME, self.folder, "ckpt4.pth")
         #self.train_df_name = "train.csv"
-        self.train_df_name = "train12.csv"
-        #self.train_df_name = "train_old.csv"
+        #self.train_df_name = "train12.csv"
+        self.train_df_name = "train_old.csv"
         #data_folder = 'external_data'
         self.num_workers = 8
-        self.batch_size = {"train": 20, "val": 8}
+        self.batch_size = {"train": 32, "val": 8}
         self.num_classes = 1
         self.top_lr = 3e-5
-        self.ep2unfreeze = 0
-        self.num_epochs = 70
+        self.ep2unfreeze = 5
+        self.num_epochs = 40
         #self.base_lr = self.top_lr * 0.001
         self.base_lr = None
         self.momentum = 0.95
-        self.size = 256
+        self.size = 300
         self.mean = (0.485, 0.456, 0.406)
         self.std = (0.229, 0.224, 0.225)
         #self.mean = (0, 0, 0)
@@ -183,7 +183,7 @@ class Trainer(object):
         outputs = self.net(images)
         #outputs = torch.sigmoid(outputs) # no sigmoid for regression mode
         loss = self.criterion(outputs, targets)
-        return loss, outputs.detach()
+        return loss, outputs
 
     def iterate(self, epoch, phase):
         meter = Meter(phase, epoch, self.save_folder)
@@ -207,7 +207,7 @@ class Trainer(object):
                 self.optimizer.step()
             running_loss += loss.item()
             # pdb.set_trace()
-            meter.update(targets, outputs)
+            meter.update(targets, outputs.detach())
             if iteration % 100 == 0:
                 iter_log(self.log, phase, epoch, iteration, total_iters, loss, start)
                 # break

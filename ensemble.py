@@ -124,25 +124,21 @@ if __name__ == "__main__":
     '''
     Uses a list of ckpts, predicts on whole train set, averages the predictions and finds optimized thresholds based on train qwk
     '''
-    #parser = get_parser()
-    #args = parser.parse_args()
-    #model_folder_path = args.model_folder_path
-    #predict_on = args.predict_on
-    #model_name, fold = get_model_name_fold(model_folder_path)
-
     model_name = "efficientnet-b5"
     ckpt_path_list = [
-        "weights/18-7_efficientnet-b5_fold0_bgccpold/ckpt39.pth",
+        "weights/19-7_efficientnet-b5_fold0_bgccpold/ckpt20.pth",
         "weights/19-7_efficientnet-b5_fold1_bgccpold/ckpt10.pth",
-        "weights/19-7_efficientnet-b5_fold2_bgccpold/ckpt39.pth",
-        "weights/19-7_efficientnet-b5_fold3_bgccpold/ckpt39.pth"
+        "weights/19-7_efficientnet-b5_fold2_bgccpold/ckpt30.pth",
+        "weights/19-7_efficientnet-b5_fold3_bgccpold/ckpt15.pth"
     ]
 
+    folds = [0, 1, 2, 3] # for extracting val sets, used for thr optimization
     sample_submission_path = "data/train.csv"
 
     tta = 4 # number of augs in tta
+    total_folds = 7
 
-    root = f"data/{predict_on}_images/"
+    root = f"data/train_images/"
     size = 256
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
@@ -158,8 +154,18 @@ if __name__ == "__main__":
         torch.set_default_tensor_type("torch.cuda.FloatTensor")
     else:
         torch.set_default_tensor_type("torch.FloatTensor")
-
+    '''
     df = pd.read_csv(sample_submission_path)
+
+    kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
+    index_list = list(kfold.split(df["id_code"], df["diagnosis"]))
+
+    val_idx = []
+    for fold in folds:
+        val_idx.extend(index_list[fold][1])
+
+    df = df.iloc[val_idx]
+
     dataset = DataLoader(
         Dataset(root, df, size, mean, std, tta),
         batch_size=batch_size,
@@ -167,16 +173,18 @@ if __name__ == "__main__":
         num_workers=num_workers,
         pin_memory=True if use_cuda else False,
     )
+    print(f"len dataset: {len(dataset)}")
 
     # generate predictions using all models
     all_predictions = []
     for idx, ckpt in enumerate(ckpt_path_list):
         print("model: %s" % ckpt)
         model, val_best_th = get_load_model(model_name, ckpt, num_classes)
-        predictions = get_predictions(model, dataset, use_tta)
-        all_predictions.append(preds)
+        predictions = get_predictions(model, dataset, tta)
+        all_predictions.append(predictions)
+        #break
 
-    predictions = np.mean(all_predictions, axis=0)
+    predictions = np.mean(all_predictions, axis=0).flatten()
 
     # optimize thresholds on training set
     targets = df['diagnosis'].values
@@ -188,7 +196,7 @@ if __name__ == "__main__":
         method="nelder-mead",
     )
     best_thresholds = simplex["x"]
-    print("Best thresholds: %s" % self.best_thresholds)
+    print("Best thresholds: %s" % best_thresholds)
 
     # predictions using best_thresholds
     preds = predict(predictions, best_thresholds)
@@ -201,7 +209,35 @@ if __name__ == "__main__":
 
     # for further analysis.
     pdb.set_trace()
+    '''
 
+    # now use the best_threshold on test data to generate predictions
+    best_thresholds = np.array([0.55174861, 1.63567643, 2.40876937, 3.10374794])
+
+    df = pd.read_csv('data/sample_submission.csv')
+    root = f"data/test_images/"
+    testset = DataLoader(
+        Dataset(root, df, size, mean, std, tta),
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True if use_cuda else False,
+    )
+    # generate predictions using all models
+    base_thresholds = np.array([0.5, 1.5, 2.5, 3.5])
+    all_predictions = []
+    for idx, ckpt in enumerate(ckpt_path_list):
+        print("model: %s" % ckpt)
+        model, val_best_th = get_load_model(model_name, ckpt, num_classes)
+        predictions = get_predictions(model, testset, tta)
+        preds = predict(predictions, best_thresholds)
+        print(np.unique(preds, return_counts=True))
+        all_predictions.append(predictions)
+        #break
+    pdb.set_trace()
+    predictions = np.mean(all_predictions, axis=0).flatten()
+    preds = predict(predictions, best_thresholds)
+    print(np.unique(preds, return_counts=True))
 
 
 '''

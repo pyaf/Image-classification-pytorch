@@ -41,13 +41,12 @@ class ImageDataset(Dataset):
     def __getitem__(self, idx):
         fname = self.fnames[idx]
         label = self.labels[idx]
-        path = os.path.join(self.images_folder, "npy_bengrahm_color", fname + ".npy")
+        path = os.path.join(self.images_folder, "bgcc300", fname + ".npy")
         image = np.load(path)
         image = self.transform(image=image)["image"]
         return fname, image, label
 
     def __len__(self):
-        #return 100
         return len(self.df)
 
 def get_transforms(phase, size, mean, std):
@@ -61,22 +60,6 @@ def get_transforms(phase, size, mean, std):
                 albumentations.Transpose(p=0.5),
                 albumentations.Flip(p=0.5),
                 albumentations.RandomScale(scale_limit=0.1),
-                #albumentations.OneOf(
-                #   [
-                #       albumentations.CLAHE(clip_limit=2),
-                #       albumentations.IAASharpen(),
-                #       albumentations.IAAEmboss(),
-                #       albumentations.RandomBrightnessContrast(),
-                #       albumentations.JpegCompression(),
-                #       albumentations.Blur(),
-                #       albumentations.GaussNoise(),
-                #   ],
-                #   p=0.5,
-                #),
-                #albumentations.HueSaturationValue(p=0.5),
-                #albumentations.ShiftScaleRotate(
-                #   shift_limit=0.15, scale_limit=0.15, rotate_limit=45, p=0.5
-                #),
             ]
         )
 
@@ -84,7 +67,7 @@ def get_transforms(phase, size, mean, std):
         [
 
             albumentations.Normalize(mean=mean, std=std, p=1),
-            albumentations.Resize(size, size),  # because RandomScale is applied
+            albumentations.Resize(size, size),
             AT.ToTensor(normalize=None), # [6]
         ]
     )
@@ -106,18 +89,19 @@ def get_sampler(df, class_weights=None):
 def resampled(df):
 
     ''' resample `total` data points from old data, following the dist of org data '''
-    def sample(obj, total=7800): # [5]
-        return obj.sample(n=int(count_dict[obj.name] * total), replace=False)
+    def sample(obj): # [5]
+        return obj.sample(n=count_dict[obj.name], replace=False)
 
     count_dict = {
-        0: 0.5,
-        2: 0.28,
-        1: 0.11,
-        4: 0.09,
-        3: 0.06
-    } # approx dist of org data, notice the order of keys
+        0: 10000,
+        2: 5292,
+        1: 2443,
+        3: 873,
+        4: 708
+    } # notice the order of keys
 
-    sampled_df = df.groupby('diagnosis').apply(sample).reset_index(drop=True)
+    sampled_df = train_old.groupby('diagnosis').apply(sample).reset_index(drop=True)
+
     return sampled_df
 
 
@@ -138,14 +122,14 @@ def provider(
     df = pd.read_csv(df_path)
     HOME = os.path.abspath(os.path.dirname(__file__))
 
-    bad_indices = np.load(os.path.join(HOME, "data/bad_train_indices.npy"))
-    dup_indices = np.load(
-        os.path.join(HOME, "data/dups_with_same_diagnosis.npy")
-    )  # [3]
-    duplicates = df.iloc[dup_indices]
+    #bad_indices = np.load(os.path.join(HOME, "data/bad_train_indices.npy"))
+    #dup_indices = np.load(
+    #    os.path.join(HOME, "data/dups_with_same_diagnosis.npy")
+    #)  # [3]
+    #duplicates = df.iloc[dup_indices]
 
-    all_dups = np.array(list(bad_indices) + list(dup_indices))
-    df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
+    #all_dups = np.array(list(bad_indices) + list(dup_indices))
+    #df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
 
     #'''later appended also'''
 
@@ -153,19 +137,19 @@ def provider(
     #if num_samples: # [4]
     #    df = df.iloc[:num_samples]
 
-    ''' to be used only with old data training '''
+    #''' to be used only with old data training '''
     #df = resampled(df)
     #print(f'sampled df shape: {df.shape}')
     #print('data dist:\n',  df['diagnosis'].value_counts(normalize=True))
 
-    kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
-    train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
-    train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
+    #kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
+    #train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
+    #train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
 
-    train_df = train_df.append(duplicates, ignore_index=True)  # add all
+    #train_df = train_df.append(duplicates, ignore_index=True)  # add all
 
-    #train_df = pd.read_csv('data/train_old.csv')
-    #val_df = pd.read_csv('data/train12.csv')
+    train_df = pd.read_csv('data/train_old.csv')
+    val_df = pd.read_csv('data/train12.csv')
 
     df = train_df if phase == "train" else val_df
 
@@ -184,12 +168,16 @@ def provider(
         shuffle=False if datasampler else True,
         sampler=datasampler,
     )  # shuffle and sampler are mutually exclusive args
+
+    print(f'len(dataloader): {len(dataloader)}')
     return dataloader
 
 
 if __name__ == "__main__":
+    import time
+    start = time.time()
     phase = "train"
-    num_workers = 0
+    num_workers = 8
     fold = 0
     total_folds = 5
     mean = (0.485, 0.456, 0.406)
@@ -197,15 +185,16 @@ if __name__ == "__main__":
     mean = (0.5, 0.5, 0.5)
     std = (0.5, 0.5, 0.5)
 
-    size = 256
+    size = 300
 
     root = os.path.dirname(__file__)  # data folder
     data_folder = "data"
     # train_df_name = 'train.csv'
-    train_df_name = "train12.csv"
+    #train_df_name = "train12.csv"
+    train_df_name = 'train_old.csv'
     num_samples = None #5000
-    class_weights = None #[1, 1, 1, 1, 1]
-    batch_size = 1
+    class_weights = [1, 2, 1, 2, 2]
+    batch_size = 16
     # data_folder = 'external_data'
     images_folder = os.path.join(root, data_folder, "train_images/")  #
     df_path = os.path.join(root, data_folder, train_df_name)  #
@@ -228,10 +217,12 @@ if __name__ == "__main__":
     total_len = len(dataloader)
     for idx, batch in enumerate(dataloader):
         fnames, images, labels = batch
-        print("%d/%d" % (idx, total_len), images.shape, labels.shape, labels)
+        print("%d/%d" % (idx, total_len), images.shape, labels.shape)
         total_labels.extend(labels.tolist())
-        pdb.set_trace()
+        #pdb.set_trace()
     print(np.unique(total_labels, return_counts=True))
+    diff = time.time() - start
+    print('Time taken: %02d:%02d' % (diff//60, diff%60))
 
 
 """

@@ -99,12 +99,14 @@ class Meter:
         # self.predictions.extend(torch.argmax(outputs, dim=1).tolist()) #[2]
 
     def get_best_thresholds(self):
+        '''Epoch over, let's get targets in np array [6]'''
+        self.targets = np.array(self.targets)
+
         if self.phase == "train":
             return self.best_thresholds
 
         """Used in the val phase of iteration, see [4]"""
         self.predictions = np.array(self.predictions)
-        self.targets = np.array(self.targets)
         simplex = scipy.optimize.minimize(
             compute_score_inv,
             self.best_thresholds,
@@ -118,7 +120,6 @@ class Meter:
     def get_cm(self):
         #pdb.set_trace()
         thresholds = self.best_thresholds
-
         self.predictions = predict(self.predictions, self.best_thresholds)
         cm = ConfusionMatrix(self.targets, self.predictions)
         qwk = cohen_kappa_score(self.targets, self.predictions, weights="quadratic")
@@ -267,4 +268,6 @@ Now for the validation phase, best_threshold function is used to compute the opt
 It can be argued ki why are we using 0.5 for train, then, well we used 0.5 for both train/val so far, so if we are computing this val set best threshold, then not only it can be used to best evaluate the model on val set, it can also be used during the test time prediction as it is being saved with each ckpt.pth
 
 [5]: np.array because it's a list and gets converted to np.array in get_best_threshold function only which is called in val phase and not training phase
+
+[6]: It's important to keep these two in np array, else ConfusionMatrix takes targets as strings. -_-
 """

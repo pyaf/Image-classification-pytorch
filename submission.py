@@ -2,6 +2,7 @@ import pdb
 import os
 import cv2
 import time
+from glob import glob
 import torch
 import scipy
 import pandas as pd
@@ -17,7 +18,7 @@ import torch.utils.data as data
 from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.metrics import cohen_kappa_score
 from models import Model, get_model
-from utils import get_preds
+from utils import *
 from image_utils import *
 
 
@@ -27,15 +28,8 @@ def get_parser():
         "-c",
         "--ckpt_path",
         dest="ckpt_path",
-        help="relative path to the saved model checkpoint to be used",
+        help="Checkpoint to use",
     )
-    # parser.add_argument(
-    #    "-m",
-    #    "-- model_name",
-    #    dest="model_name",
-    #    help="Model name",
-    #    default="se_resnet50",
-    # )
     parser.add_argument(
         "-p",
         "--predict_on",
@@ -43,90 +37,26 @@ def get_parser():
         help="predict on train or test set, options: test or train",
         default="resnext101_32x4d",
     )
-    # parser.add_argument(
-    #    "-f",
-    #    "--fold",
-    #    dest="fold",
-    #    help="which fold the model was trained on?",
-    #    default="resnext101_32x4d",
-    # )
-
     return parser
 
 
-def get_best_threshold(model, size, mean, std, fold, total_folds, batch_size, num_workers, use_cuda, device):
-    """
-    root: the folder with the images
-    model: the model to use for prediction
-    fold: which are we talking abt? gotta get the val set
-    total_folds: required for val set
-    train_df: training dataframe
-    """
-
-    train_df_path = "data/train.csv"
-    train_df = pd.read_csv(train_df_path)
-    bad_indices = np.load("data/bad_train_indices.npy")
-    df = train_df.drop(train_df.index[bad_indices])  # remove duplicates
-    kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
-    train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
-    train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
-    # a dataloader for val set
-    root = "data/train_images"
-    valset = DataLoader(
-        TestDataset(root, val_df, size, mean, std, False),
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True if use_cuda else False,
-    )
-    print("Getting predictions on validation set for fold %d..." % fold)
-    val_pred = get_predictions(model, valset, False, device)
-
-    def compute_score_inv(threshold):
-        # pdb.set_trace()
-        y1 = val_pred > threshold
-        y1 = get_preds(y1, 5) # num_classes = 5
-        y2 = val_df.diagnosis.values
-        score = cohen_kappa_score(y1, y2, weights="quadratic")
-        return 1 - score
-
-    print("Getting the best threshold..")
-
-    initial_coeffs = np.array([0.5, 0.5, 0.5, 0.5, 0.5])
-    simplex = scipy.optimize.minimize(
-            compute_score_inv, initial_coeffs, method="nelder-mead")
-
-    best_threshold = simplex["x"]
-    print("best threshold: %s" % best_threshold)
-    return best_threshold
-
-
 class TestDataset(data.Dataset):
-    def __init__(self, root, df, size, mean, std, tta=True):
+    def __init__(self, root, df, size, mean, std, tta=4):
         self.root = root
         self.size = size
         self.fnames = list(df["id_code"])
         self.num_samples = len(self.fnames)
-        #self.transform = albumentations.Compose(
-        #    []
-        #)
-        self.TTA = (
+        self.tta = tta
+        self.TTA = albumentations.Compose(
             [
                 #albumentations.RandomRotate90(p=1),
-                albumentations.Transpose(p=1),
-                albumentations.Flip(p=1),
+                albumentations.Transpose(p=0.5),
+                albumentations.Flip(p=0.5),
                 albumentations.RandomScale(scale_limit=0.1),
-                albumentations.Compose(
-                    [
-                        #albumentations.RandomRotate90(p=0.8),
-                        albumentations.Transpose(p=0.8),
-                        albumentations.Flip(p=0.8),
-                        albumentations.RandomScale(scale_limit=0.1),
-                    ]
-                ),
+
             ]
         )
-        self.last_transform = albumentations.Compose(
+        self.transform = albumentations.Compose(
             [
                 albumentations.Normalize(mean=mean, std=std, p=1),
                 albumentations.Resize(size, size),
@@ -139,50 +69,39 @@ class TestDataset(data.Dataset):
         path = os.path.join(self.root, fname + ".png")
         # image = load_image(path, size)
         # image = load_ben_gray(path)
-        image = load_ben_color(path, size=self.size, crop=False)
+        image = load_ben_color(path, size=self.size, crop=True)
 
-        images = [
-            self.last_transform(image=image)["image"]
-        ]
-        if self.TTA:
-            for aug in self.TTA:
-                aug_img = aug(image=image)["image"]
-                #aug_img = self.transform(image=aug_img)["image"]
-                aug_img = self.last_transform(image=aug_img)["image"]
-                images.append(aug_img)
+        images = [self.transform(image=image)["image"]]
+        for _ in range(self.tta): # perform ttas
+            aug_img = self.TTA(image=image)["image"]
+            aug_img = self.transform(image=aug_img)["image"]
+            images.append(aug_img)
         return torch.stack(images, dim=0)
 
     def __len__(self):
         return self.num_samples
 
 
-def get_predictions(model, testset, use_tta, device):
+def get_predictions(model, testset, tta):
     """return all predictions on testset in a list"""
     num_images = len(testset)
     predictions = []
     for i, batch in enumerate(tqdm(testset)):
-        if use_tta:
+        if tta:
             for images in batch:  # images.shape [n, 3, 96, 96] where n is num of 1+tta
-                preds = torch.sigmoid(model(images.to(device))) # [n, num_classes]
-                #pred = torch.argmax(preds.cpu().mean(dim=1), dim=1).item()
+                preds = model(images.to(device)) # [n, num_classes]
                 predictions.append(preds.mean(dim=0).detach().tolist())
         else:
             preds = model(batch[:, 0].to(device))
-            # preds = torch.argmax(preds.cpu(), dim=1).tolist() # CELoss
-            # preds = (torch.sigmoid(preds) > threshold).cpu().numpy()
-            # preds = get_preds(preds, num_classes)
-            # predictions.extend(preds.tolist())
-
-            preds = torch.sigmoid(preds).detach().tolist()
+            preds = preds.detach().tolist() #[1]
             predictions.extend(preds)
-        # if i==10:break
 
     return np.array(predictions)
 
 
-def get_model_name_fold(model_folder_path):
-    # example ckpt_path = weights/9-7_{modelname}_fold0_text/
-    model_folder = model_folder_path.split("/")[1]  # 9-7_{modelname}_fold0_text
+def get_model_name_fold(ckpt_path):
+    # example ckpt_path = weights/9-7_{modelname}_fold0_text/ckpt12.pth
+    model_folder = ckpt_path.split("/")[1]  # 9-7_{modelname}_fold0_text
     model_name = "_".join(model_folder.split("_")[1:-2])  # modelname
     fold = model_folder.split("_")[-2]  # fold0
     fold = fold.split("fold")[-1]  # 0
@@ -190,71 +109,75 @@ def get_model_name_fold(model_folder_path):
 
 
 if __name__ == "__main__":
+    '''
+    use given ckpt to generate final predictions using the corresponding best thresholds.
+    '''
     parser = get_parser()
     args = parser.parse_args()
     ckpt_path = args.ckpt_path
     predict_on = args.predict_on
     model_name, fold = get_model_name_fold(ckpt_path)
 
-    print("Using model: %s | fold: %s" % (model_name, fold))
     if predict_on == "test":
-        print("Predicting on test set")
-        root = "data/test_images/"
         sample_submission_path = "data/sample_submission.csv"
-        sub_path = ckpt_path.replace(".pth", ".csv")
     else:
-        print("Predicting on train set")
-        root = "data/train_images/"
         sample_submission_path = "data/train.csv"
-        sub_path = ckpt_path.replace(".pth", "_train.csv")
 
-    total_folds = 5
-    size = 224
+    sub_path = ckpt_path.replace(".pth", f"{predict_on}.csv")
+    tta = 4 # number of augs in tta
+
+    root = f"data/{predict_on}_images/"
+    size = 256
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
+    #mean = (0, 0, 0)
+    #std = (1, 1, 1)
     use_cuda = True
-    use_tta = True
-    num_classes = 5
-    num_workers = 4
-    batch_size = 8
+    num_classes = 1
+    num_workers = 8
+    batch_size = 16
     device = torch.device("cuda" if use_cuda else "cpu")
     if use_cuda:
+        cudnn.benchmark = True
         torch.set_default_tensor_type("torch.cuda.FloatTensor")
     else:
         torch.set_default_tensor_type("torch.FloatTensor")
 
-    if use_cuda:
-        cudnn.benchmark = True
-
-    print("Using trained model at %s" % ckpt_path)
-    model = get_model(model_name, num_classes, pretrained=None)
-    state = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
-    model.load_state_dict(state["state_dict"])
-    epoch = state["epoch"]
-    best_threshold = state["best_threshold"]
-    #best_threshold = 0.6 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-    model.to(device)
-    model.eval()
-    print("Model from Epoch:", epoch)
-    print("best threshold: ", best_threshold)
-    # best_threshold = get_best_threshold(model, fold, total_folds)
-
     df = pd.read_csv(sample_submission_path)
     testset = DataLoader(
-        TestDataset(root, df, size, mean, std, use_tta),
+        TestDataset(root, df, size, mean, std, tta),
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True if use_cuda else False,
     )
 
-    predictions = get_predictions(model, testset, use_tta, device)
-    predictions = predictions > best_threshold
-    predictions = get_preds(predictions, num_classes)
+    model = get_model(model_name, num_classes, pretrained=None)
+    model.to(device)
+    model.eval()
 
-    test_sub = pd.read_csv(sample_submission_path)
-    for idx, pred in enumerate(tqdm(predictions)):
-        test_sub.loc[idx, "diagnosis"] = pred
+    print(f"Using {ckpt_path}")
+    print(f"Predicting on: {predict_on} set")
+    print(f"Root: {root}")
+    print(f"Using tta: {tta}\n")
 
-    print("Saving predictions at %s" % sub_path)
-    test_sub.to_csv(sub_path, index=False)
+    state = torch.load(ckpt_path, map_location=lambda storage, loc: storage)
+    model.load_state_dict(state["state_dict"])
+    best_thresholds = state["best_thresholds"]
+    print(f"Best thresholds: {best_thresholds}")
+    preds = get_predictions(model, testset, tta)
+
+    pred_labels = predict(preds, best_thresholds)
+    print(np.unique(pred_labels, return_counts=True))
+    pdb.set_trace()
+    df.loc[:, "diagnosis"] = pred_labels
+    print(f"Saving predictions at {sub_path}")
+    df.to_csv(sub_path, index=False)
+    print("Predictions saved!")
+
+
+'''
+Footnotes
+
+[1] a cuda variable can be converted to python list with .detach() (i.e., grad no longer required) then .tolist(), apart from that a cuda variable can be converted to numpy variable only by copying the tensor to host memory by .cpu() and then .numpy
+'''

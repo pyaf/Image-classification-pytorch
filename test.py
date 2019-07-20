@@ -20,7 +20,7 @@ from sklearn.metrics import cohen_kappa_score
 from models import Model, get_model
 from utils import *
 from image_utils import *
-from submission import get_best_threshold
+
 
 def get_parser():
     parser = ArgumentParser()
@@ -127,7 +127,7 @@ if __name__ == "__main__":
 
     tta = 4 # number of augs in tta
     start_epoch = 0
-    end_epoch = 20
+    end_epoch = 30
 
     root = f"data/{predict_on}_images/"
     size = 256

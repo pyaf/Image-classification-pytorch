@@ -137,7 +137,8 @@ def efficientNet(name, out_features):
     for params in model.parameters():
         params.requires_grad = False
 
-    model._fc.requires_grad = True
+    for params in model._fc.parameters():
+        params.requires_grad = True
 
     return model
 

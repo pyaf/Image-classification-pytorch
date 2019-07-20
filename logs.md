@@ -254,6 +254,9 @@ ckpt22: when I mistakenly submitted it with ckpt25's best thresholds I got 0.763
 * `17_7-resnext101_32x4d_v0_fold0_bgc3t12v`: Old data as training, new data as validation till epoch 17, then fine tuned on new data only, with 1e-6, the test predictions are not promising.
 
 * `17-7_resnext101_32x16d_v0_fold0_bgccold`: insta trained resnext 16d model. Training on sampled old data. Heck!! forgot to remove imagenet mean and std, argghh
+
+#### 18 July
+
 * `18-7_resnext101_32x16d_v0_fold0_bgccold`: same as before with mean=0, std=1, lr=1e-5
 It's taking a lot of time, setting up Comp Unit's GPU cluster.
 
@@ -279,6 +282,8 @@ Time to get started with EfficientNets
 Choosing ckpt19.pth acc: 0.65/0.66, loss:0.39/0.42, qwk: 0.85/0.85
 * `18-7_efficientnet-b5_fold0_bgccpold`:
 The curves keep improving, is there any leak in the train/val?
+
+#### 19 July
 
 *Mistake* the model freezing code was not written for this model as well as the resnext101_32x16d model. (I used required_grad=False, instead of requires_grad -_-) Still the models trained well.
 
@@ -312,11 +317,81 @@ retraining: Without bad duplicates, duplicates in train set only, with lr 1e-4, 
 The model plots are showing significant improvement compared to previous models.
 The lr was reduced to 1e-5 at ep 12, 1e-6 at ep 16, 1e-7 at ep 20
 
-submitted fold1, ckpt 10
+submitted fold1, ckpt 10: LB: 0.812 *MIND BLOWN*
 
 I think 1e-5 is way too high lr, testing 3e-5 for fold2
 
 meanwhile creating bengrahms color cropped 300 sized images at `data/train_images/bgcc300/`
+
+#### 20 July
+
+So, I gotta analyse these folds, fold 1 and 2 were trained without bad dups, and good dups in train set. That's why loss plots of fold 1 and 2 look reasonable.
+I'm retraining fold 0 and 3 this with train/val sanctity. calling it `19-7_efficientnet-b5_fold0_bgccpold` with lr 3e-5
+
+So, I've trained fold 0, 1, 2, 3 for efficientnet-b5 models (re: `19_7-efficientnet-b5_fold*_bgccpold`)
+remember: fold1's ckpt10 got me to LB: 0.812, this 4 model ensemble can do wonders. What about instead of train set optimization of thresholds, we optimize them on combined val set of the four folds.
+
+fold0: val loss> train loss after ep 3, but val qwk and acc keep increasing till ep 20, choosing 20. (lr 3e-5)
+fold1: val loss> train loss after ep 10, same with other two, choosing ckpt 10. (lr: 1e-4)
+fold2: vloss>tloss after ep 20, qwk and acc improve till ep 30, choosing 30. (lr: 3e-5)
+fold3: plots don't improve after ep 12, choosing ep 15. (lr: 3e-5)
+
+submissions
+
+fold 1, ckpt10, (array([0, 1, 2, 3, 4]), array([ 331,  195, 1145,  193,   64]))
+*same above model when submitted again, got 0.809, even after tta model predictions are +- 0.03 on LB*
+fold 1, ckpt12: LB: 0.779
+thresholds optimized at the overall val set are giving bad results, prob because model are too confident on other's val sets, leading to overfitted ensemble. base thresholds (0.5, 1.5, 2..5, 3.5) looks great.
+submitting ensemble of f0,1,2,3 at base threshold submitted at 3:50PM, got results at 5:40 PM ~ 2 hours. LB: 0.80
+
+*Analysing ckpt10 on train set*
+
+Model is good with class 0, extremely good., 0.99 sensitivity, specificity, precision.
+*This is a multiclass confusion matrix, TNR will be higher for almost every class, it's not a good metric to go for. Class wise sensitivity (TPR) and precision (PPV) are reliable metrics here*
+It is over confident with class 2, a lot of class 1, 3, and 4 preds go to class 2.
+
+TPR:
+  0: 0.99,
+  1: 0.55,
+  2: 0.92,
+  3: 0.45,
+  4: 0.56
+
+Precision:
+  0: 0.99,
+  1: 0.76,
+  2: 0.75,
+  3: 0.49,
+  4: 0.89
+
+Class 0: Model's good. very good.
+Class 1: Model needs to see more examples.
+Class 2: Model is getting overconfident. (Because the sampled old data had 30% examples from class 2)
+Class 3: Model needs more examples.
+Class 4: Model needs more examples.
+
+'TPR Macro': 0.6984477516938137,
+'PPV Macro': 0.781013449615591,
+
+This is not good. You may be getting good results on LB, but remember this underperforming and biased model may cost you in the private LB.
+
+fml, deleted logs of fold1 (everything, tb, obj files) *and* fold2 (only tb) by mistake using rm -r -_- -_-
+
+So, gotta retrain on old data with better sampling. Model needs to see more of class 1, 3, and 4. Earlier sampling ratios:
+
+0: 0.5,
+2: 0.28,
+1: 0.11,
+4: 0.09,
+3: 0.06
+
+Training on old data as train set and new data as val set, with class weights [1, 2, 1, 2, 2],
+
+`20-7_efficientnet-b3_fold0_bgcco300`: EfficientNet-b3 model with  bgcc image size 300, old data as training set, class weights [1, 2, 1, 2, 2], lr: 5e-5,
+
+*Bugfix*
+model._fc.parameters() are two tensors (w and b), we need to set their parameters' requires_grad not model's.
+
 
 
 
@@ -334,6 +409,7 @@ meanwhile creating bengrahms color cropped 300 sized images at `data/train_image
 * go through this: https://www.kaggle.com/c/aptos2019-blindness-detection/discussion/97860#579277
 * https://www.kaggle.com/kosiew/rank-averaging-script
 * Good coders are participating in multiple competitions at a time.
+* Should the distance between the categories be same? like is mild DR equally spaced to Moderate as it is to No DR
 
 # TODO:
 
@@ -452,3 +528,7 @@ EfficientNet params:
   'efficientnet-b5': (1.6, 2.2, 456, 0.4),
   'efficientnet-b6': (1.8, 2.6, 528, 0.5),
   'efficientnet-b7': (2.0, 3.1, 600, 0.5),
+
+
+General Lessons:
+* Don't use full words in model folder names, use f0, instead of fold0
