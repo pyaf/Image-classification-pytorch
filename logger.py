@@ -112,7 +112,7 @@ if __name__ == "__main__":
     """log class statistics"""
 
     #class_metrics = ["TPR", "TNR", "PPV", "NPV", "FNR", "FPR", "ACC", "F1", "AUC"]
-    class_metrics = ["TPR", "TNR"]
+    class_metrics = ["TPR", "PPV"]
     print()
     print(f"Logging class metrics: {class_metrics}")
     log_class_stats(folder_name, "train", log_folder, class_metrics)

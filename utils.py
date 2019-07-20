@@ -176,30 +176,36 @@ def epoch_log(log, tb, phase, epoch, epoch_loss, meter, start):
     diff = time.time() - start
     cm, qwk = meter.get_cm()
     acc = cm.overall_stat["Overall ACC"]
+    tpr = cm.overall_stat["TPR Macro"] #[7]
+    ppv = cm.overall_stat["PPV Macro"]
+    cls_tpr = cm.class_stat['TPR']
+    cls_ppv = cm.class_stat['PPV']
+
     print()
     log(
-        "%s %d |  loss: %0.4f | qwk: %0.4f | acc: %0.4f \n"
-        % (phase, epoch, epoch_loss, qwk, acc)
+        "%s %d |  loss: %0.4f | QWK: %0.4f | ACC: %0.4f | TPR: %0.4f | PPV: %0.4f \n"
+        % (phase, epoch, epoch_loss, qwk, acc, tpr, ppv)
     )
+
+    cls_tpr = {x: "%0.4f" % y for x, y in cls_tpr.items()}
+    cls_ppv = {x: "%0.4f" % y for x, y in cls_ppv.items()}
+
+    log('Class TPR: %s' % cls_tpr)
+    log('Class PPV: %s' % cls_ppv)
     log(cm.print_normalized_matrix())
     log("Time taken for %s phase: %02d:%02d \n", phase, diff // 60, diff % 60)
 
     # tensorboard
     logger = tb[phase]
     logger.log_value("loss", epoch_loss, epoch)
-    logger.log_value("acc", acc, epoch)
-    logger.log_value("qwk", qwk, epoch)
+    logger.log_value("ACC", acc, epoch)
+    logger.log_value("QWK", qwk, epoch)
+    logger.log_value("TPR", tpr, epoch)
+    logger.log_value("PPV", ppv, epoch)
 
-    # pycm confusion matrix and metrics
+    # save pycm confusion
     obj_path = os.path.join(meter.save_folder, f"cm{phase}_{epoch}")
     cm.save_obj(obj_path, save_stat=True, save_vector=False)
-
-    # log_value(phase + " roc", roc, epoch)
-    # log_value(phase + " precision", precision, epoch)
-    # log_value(phase + " tnr", tnr, epoch)
-    # log_value(phase + " fpr", fpr, epoch)
-    # log_value(phase + " fnr", fnr, epoch)
-    # log_value(phase + " tpr", tpr, epoch)
 
     return qwk
 
@@ -270,4 +276,6 @@ It can be argued ki why are we using 0.5 for train, then, well we used 0.5 for b
 [5]: np.array because it's a list and gets converted to np.array in get_best_threshold function only which is called in val phase and not training phase
 
 [6]: It's important to keep these two in np array, else ConfusionMatrix takes targets as strings. -_-
+
+[7]: macro mean average of all the classes. Micro is batch average or sth.
 """

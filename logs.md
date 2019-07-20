@@ -389,9 +389,17 @@ Training on old data as train set and new data as val set, with class weights [1
 
 `20-7_efficientnet-b3_fold0_bgcco300`: EfficientNet-b3 model with  bgcc image size 300, old data as training set, class weights [1, 2, 1, 2, 2], lr: 5e-5,
 
-*Bugfix*
-model._fc.parameters() are two tensors (w and b), we need to set their parameters' requires_grad not model's.
+*Bugfix* model._fc.parameters() are two tensors (w and b), we need to set their parameters' requires_grad not model's.
+Use num_workers=12; at num_worker=8, batch size=32: gpu mem ~7.5GB, but utilization ~90%, CPU utilization ~66%.
+ep 12 looks relatively optimum. TPR: 0.68/0.65, PPV: 0.68/0.65
+it's failing at class 1, not sure why. Though quite comparable with `18-7_efficientnet-b5_fold0_bgccold` model
 
+#### 21 July
+
+finetuning:
+`21-7_efficientnet-b3_fold0_bgccpold`: class_weights: 1, 1.5, 1, 1.5, 1.5; num_workers=12, without bad duplicates, with good ones in train set. Choosing ckpt14 for submission.
+model starts overfitting after ep 10, submitted ckpt14, ckpt12. The class 4 seems to be underfitted.
+ckpt10 test prediction reg kernel output is ready, just submit in the morning.
 
 
 
@@ -432,6 +440,9 @@ model._fc.parameters() are two tensors (w and b), we need to set their parameter
 * The resume code had a bug, if you'd resume you'll start with base_lr = top_lr * 0.001, and if the start epoch was greater than say 10, it will remain the same.
 * The public test data is 15% of total test data and is used for public LB scoring. The private test set (85% of total) Will be used for private LB scoring.
 * Updated the dataset to a new version? Just reboot the kernel to reflect that update (no remove and add shit)
+* First epoch may not have full utilization, next epoch it'll be full thanks to pin_memory.
+
+
 
 # Things to check, just before starting the model training:
 
