@@ -279,7 +279,7 @@ ckpt 20, , 0.785
 
 Time to get started with EfficientNets
 * `18-7_efficientnet-b5_fold0_bgccold`: EfficientNet-b5 pretrained on imagenet, training on sampled old data, batch size 20/8 with amp (my god!! why wasn't I using it so far). lr = 1e-3
-Choosing ckpt19.pth acc: 0.65/0.66, loss:0.39/0.42, qwk: 0.85/0.85
+Choosing *ckpt19.pth* acc: 0.65/0.66, loss:0.39/0.42, qwk: 0.85/0.85
 * `18-7_efficientnet-b5_fold0_bgccpold`:
 The curves keep improving, is there any leak in the train/val?
 
@@ -399,7 +399,12 @@ it's failing at class 1, not sure why. Though quite comparable with `18-7_effici
 finetuning:
 `21-7_efficientnet-b3_fold0_bgccpold`: class_weights: 1, 1.5, 1, 1.5, 1.5; num_workers=12, without bad duplicates, with good ones in train set. Choosing ckpt14 for submission.
 model starts overfitting after ep 10, submitted ckpt14, ckpt12. The class 4 seems to be underfitted.
-ckpt10 test prediction reg kernel output is ready, just submit in the morning.
+ckpt10 test prediction reg kernel output is ready, just submit in the morning. Predictions look bad, 400 for class 1.
+
+`logger.py` was logging micro metrics in overall stats so far.
+
+All experiment metrics for submitted ckpts will be logged in APTOS Google Sheet from now on.
+After starting each experiment, I'll commit the code with the name of that experiment. It is no more a generic baseline model on github. It's code of aptos-blindness-detection competition
 
 
 
