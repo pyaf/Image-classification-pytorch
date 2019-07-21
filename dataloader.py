@@ -60,6 +60,18 @@ def get_transforms(phase, size, mean, std):
                 albumentations.Transpose(p=0.5),
                 albumentations.Flip(p=0.5),
                 albumentations.RandomScale(scale_limit=0.1),
+                albumentations.OneOf(
+                    [
+                        albumentations.CLAHE(clip_limit=2),
+                        albumentations.IAASharpen(),
+                        albumentations.IAAEmboss(),
+                        albumentations.RandomBrightnessContrast(),
+                        albumentations.JpegCompression(),
+                        albumentations.Blur(),
+                        albumentations.GaussNoise(),
+                    ],
+                    p=0.5,
+                ),
             ]
         )
 
@@ -122,14 +134,14 @@ def provider(
     df = pd.read_csv(df_path)
     HOME = os.path.abspath(os.path.dirname(__file__))
 
-    bad_indices = np.load(os.path.join(HOME, "data/bad_train_indices.npy"))
-    dup_indices = np.load(
-        os.path.join(HOME, "data/dups_with_same_diagnosis.npy")
-    )  # [3]
-    duplicates = df.iloc[dup_indices]
+    #bad_indices = np.load(os.path.join(HOME, "data/bad_train_indices.npy"))
+    #dup_indices = np.load(
+    #    os.path.join(HOME, "data/dups_with_same_diagnosis.npy")
+    #)  # [3]
+    #duplicates = df.iloc[dup_indices]
 
-    all_dups = np.array(list(bad_indices) + list(dup_indices))
-    df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
+    #all_dups = np.array(list(bad_indices) + list(dup_indices))
+    #df = df.drop(df.index[all_dups])  # remove duplicates and split train/val
 
     #'''later appended also'''
 
@@ -146,7 +158,7 @@ def provider(
     train_idx, val_idx = list(kfold.split(df["id_code"], df["diagnosis"]))[fold]
     train_df, val_df = df.iloc[train_idx], df.iloc[val_idx]
 
-    train_df = train_df.append(duplicates, ignore_index=True)  # add all
+    #train_df = train_df.append(duplicates, ignore_index=True)  # add all
 
     #train_df = pd.read_csv('data/train_old.csv')
     #val_df = pd.read_csv('data/train12.csv')

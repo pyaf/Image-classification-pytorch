@@ -3,12 +3,12 @@ import pdb
 import cv2
 import time
 import torch
+import random
 import scipy
 import logging
 import traceback
 import numpy as np
 from datetime import datetime
-
 # from config import HOME
 from tensorboard_logger import log_value, log_images
 from torchnet.meter import ConfusionMeter
@@ -253,6 +253,12 @@ def save_hyperparameters(trainer, remark):
     print(string_to_write)
 
 
+def seed_pytorch(seed=69):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
 
 
 """Footnotes:

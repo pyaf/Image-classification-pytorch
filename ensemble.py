@@ -20,7 +20,7 @@ from sklearn.metrics import cohen_kappa_score
 from models import Model, get_model
 from utils import *
 from image_utils import *
-from submission import get_best_threshold
+#from submission import get_best_threshold
 
 def get_parser():
     parser = ArgumentParser()
@@ -126,20 +126,22 @@ if __name__ == "__main__":
     '''
     model_name = "efficientnet-b5"
     ckpt_path_list = [
-        "weights/19-7_efficientnet-b5_fold0_bgccpold/ckpt20.pth",
-        "weights/19-7_efficientnet-b5_fold1_bgccpold/ckpt10.pth",
-        "weights/19-7_efficientnet-b5_fold2_bgccpold/ckpt30.pth",
-        "weights/19-7_efficientnet-b5_fold3_bgccpold/ckpt15.pth"
+        #"weights/19-7_efficientnet-b5_fold0_bgccpold/ckpt20.pth",
+        #"weights/19-7_efficientnet-b5_fold1_bgccpold/ckpt10.pth",
+        #"weights/19-7_efficientnet-b5_fold2_bgccpold/ckpt30.pth",
+        #"weights/19-7_efficientnet-b5_fold3_bgccpold/ckpt15.pth"
+        "weights/21-7_efficientnet-b5_fold1_bgccpo300/ckpt20.pth"
     ]
 
-    folds = [0, 1, 2, 3] # for extracting val sets, used for thr optimization
+    #folds = [0, 1, 2, 3] # for extracting val sets, used for thr optimization
+    folds = [1]
     sample_submission_path = "data/train.csv"
 
     tta = 4 # number of augs in tta
     total_folds = 7
 
     root = f"data/train_images/"
-    size = 256
+    size = 300
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
     #mean = (0, 0, 0)
@@ -154,17 +156,17 @@ if __name__ == "__main__":
         torch.set_default_tensor_type("torch.cuda.FloatTensor")
     else:
         torch.set_default_tensor_type("torch.FloatTensor")
-    '''
+
     df = pd.read_csv(sample_submission_path)
 
-    kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
-    index_list = list(kfold.split(df["id_code"], df["diagnosis"]))
+    #kfold = StratifiedKFold(total_folds, shuffle=True, random_state=69)
+    #index_list = list(kfold.split(df["id_code"], df["diagnosis"]))
 
-    val_idx = []
-    for fold in folds:
-        val_idx.extend(index_list[fold][1])
+    #val_idx = []
+    #for fold in folds:
+    #    val_idx.extend(index_list[fold][1])
 
-    df = df.iloc[val_idx]
+    #df = df.iloc[val_idx]
 
     dataset = DataLoader(
         Dataset(root, df, size, mean, std, tta),
@@ -209,10 +211,8 @@ if __name__ == "__main__":
 
     # for further analysis.
     pdb.set_trace()
-    '''
 
     # now use the best_threshold on test data to generate predictions
-    best_thresholds = np.array([0.55174861, 1.63567643, 2.40876937, 3.10374794])
 
     df = pd.read_csv('data/sample_submission.csv')
     root = f"data/test_images/"
@@ -234,11 +234,11 @@ if __name__ == "__main__":
         print(np.unique(preds, return_counts=True))
         all_predictions.append(predictions)
         #break
-    pdb.set_trace()
     predictions = np.mean(all_predictions, axis=0).flatten()
     preds = predict(predictions, best_thresholds)
     print(np.unique(preds, return_counts=True))
 
+    pdb.set_trace()
 
 '''
 Footnotes

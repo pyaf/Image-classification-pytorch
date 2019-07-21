@@ -312,7 +312,7 @@ As you are selecting models based on test pred count, and not the loss, chances 
 
 Retraining fold1,2,3 all duplicates in train set only.
 
-fold1: Earlier I had added duplicates in the df (before train/val split), this time only good duplicates in train df, and mistakenly bad duplicates were not removed from teh df before train/val split, plot a little lower compared to previous one obviously because the previous model had train val leak.
+fold1: Earlier I had added duplicates in the df (before train/val split), this time only good duplicates in train df, and mistakenly bad duplicates were not removed from the df before train/val split, plots are little bad compared to previous one obviously because the previous model had train val leak.
 retraining: Without bad duplicates, duplicates in train set only, with lr 1e-4, (as 1e-5 is way to low, model takes 50 epochs to converge)
 The model plots are showing significant improvement compared to previous models.
 The lr was reduced to 1e-5 at ep 12, 1e-6 at ep 16, 1e-7 at ep 20
@@ -406,6 +406,11 @@ ckpt10 test prediction reg kernel output is ready, just submit in the morning. P
 All experiment metrics for submitted ckpts will be logged in APTOS Google Sheet from now on.
 After starting each experiment, I'll commit the code with the name of that experiment. It is no more a generic baseline model on github. It's code of aptos-blindness-detection competition
 
+* `21-7_efficientnet-b5_fold1_bgccpo300`: started with `18-7_efficientnet-b5_fold0_bgccold`'s ckpt19 model, and fine tuning on 300 sized bgcc images. lr: 3e-5
+lr reduced by 10 at ep 23, selecting 20 for submission.
+
+
+As all models are using bgcc will drop this keyword from ext_text in model names.
 
 
 # Questions and Ideas:
@@ -494,6 +499,8 @@ After starting each experiment, I'll commit the code with the name of that exper
 * data/train12.csv: train.csv and train_messidor.csv combined, i.e., category 1 and category 2 dataset labels combined
 * data/train_meta.csv: train images shapes and related information
 * data/test_meta.csv: test images' shapes and related information, though I need to write shape extraction functions in the inference scripts also as kernel is run on hidden test data.
+* data/train32.csv: old + messidor data
+*
 
 
 # remarks shortcut/keywords

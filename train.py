@@ -19,9 +19,10 @@ from dataloader import provider
 from shutil import copyfile
 from models import Model, get_model
 
+seed_pytorch()
+
 import warnings
 warnings.filterwarnings("ignore")
-
 HOME = os.path.abspath(os.path.dirname(__file__))
 now = datetime.now()
 date = "%s-%s" % (now.day, now.month)
@@ -32,7 +33,7 @@ class Trainer(object):
     def __init__(self):
         #remark = open("remark.txt", "r").read()
         remark = "finetuing using bgcc300, on previous 18-7 model pretrained on old bgcc 256 images"
-        self.fold = 0
+        self.fold = 1
         self.total_folds = 7
         self.class_weights = None #[1, 1.5, 1, 1.5, 1.5]
         #self.model_name = "resnext101_32x4d_v0"
@@ -40,7 +41,7 @@ class Trainer(object):
         #self.model_name = "se_resnet50_v0"
         #self.model_name = "densenet121"
         self.model_name = "efficientnet-b5"
-        ext_text = "bgccpo300"
+        ext_text = "bgccpo300aug"
         self.num_samples = None #5000
         self.folder = f"weights/{date}_{self.model_name}_fold{self.fold}_{ext_text}"
         self.resume = False
@@ -49,6 +50,7 @@ class Trainer(object):
         self.resume_path = os.path.join(HOME, self.folder, "ckpt4.pth")
         #self.train_df_name = "train.csv"
         self.train_df_name = "train12.csv"
+        #self.train_df_name = "train32.csv"
         #self.train_df_name = "train_old.csv"
         #data_folder = 'external_data'
         self.num_workers = 12

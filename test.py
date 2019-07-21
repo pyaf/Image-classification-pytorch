@@ -49,7 +49,7 @@ class TestDataset(data.Dataset):
         self.tta = tta
         self.TTA = albumentations.Compose(
             [
-                #albumentations.RandomRotate90(p=1),
+                albumentations.Rotate(limit=180, p=0.5),
                 albumentations.Transpose(p=0.5),
                 albumentations.Flip(p=0.5),
                 albumentations.RandomScale(scale_limit=0.1),
@@ -127,10 +127,10 @@ if __name__ == "__main__":
 
     tta = 4 # number of augs in tta
     start_epoch = 0
-    end_epoch = 30
+    end_epoch = 26
 
     root = f"data/{predict_on}_images/"
-    size = 256
+    size = 300
     mean = (0.485, 0.456, 0.406)
     std = (0.229, 0.224, 0.225)
     #mean = (0, 0, 0)
@@ -165,6 +165,9 @@ if __name__ == "__main__":
     print(f"\nUsing model: {model_name} | fold: {fold}")
     print(f"Predicting on: {predict_on} set")
     print(f"Root: {root}")
+    print(f"size: {size}")
+    print(f"mean: {mean}")
+    print(f"std: {std}")
     print(f"Saving predictions at: {npy_folder}")
     print(f"From epoch {start_epoch} to {end_epoch}")
     print(f"Using tta: {tta}\n")

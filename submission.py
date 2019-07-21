@@ -49,7 +49,7 @@ class TestDataset(data.Dataset):
         self.tta = tta
         self.TTA = albumentations.Compose(
             [
-                #albumentations.RandomRotate90(p=1),
+                albumentations.Rotate(limit=180, p=0.5),
                 albumentations.Transpose(p=0.5),
                 albumentations.Flip(p=0.5),
                 albumentations.RandomScale(scale_limit=0.1),
